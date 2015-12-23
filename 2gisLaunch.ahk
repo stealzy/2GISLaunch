@@ -14,7 +14,7 @@ SendMode Input
 menu, tray, NoStandard
 Menu, tray, add, Выход, Exit
 Menu, tray, add, Настройки, lPrefer
-if !A_IsCompiled
+if (!A_IsCompiled && FileExist(A_ScriptDir "\2gisLaunch.ico"))
 	Menu, Tray, Icon, %A_ScriptDir%\2gisLaunch.ico
 
 OnExit, Exit
@@ -717,7 +717,21 @@ Return
 			cls(nCode)
 	    } else if ((nCode = 4) || (nCode = 32772))
 			checkActiveWin()
+
+			if nCode
+				checkPreferenceWin()
 		}
+
+		checkPreferenceWin() {
+			SetTimer, CheckPreferenceWinExist, -50
+			Return
+
+			CheckPreferenceWinExist:
+			IfWinExist, Общие настройки ahk_class #32770
+				msg("Preference " nCode)
+			Return
+		}
+
 		cls(nCode) {
 			DetectHiddenWindows, on
 			SetWinDelay, 0
@@ -800,7 +814,7 @@ Return
 			; AutoHide(iShowLineKompas, iShowInstruments, MapView, x, y, LButtonState)
 		ShowToolBarByMouse(iToolbarByMouse, x, y, heightAboveMap, XTPDockBar, iShowDockBar, LButtonState, RButtonState)
 		LKM(x, y, LButtonState)
-		RKM(x, y, RButtonState)
+		RKM(x, y)
 		; if Not (timeLeapse++<(n-1)) {
 			; ElapsedTime := A_TickCount - StartTime
 			; msg("xy: " . x . " " . y . " LB: " . LButtonState . " RB: " . RButtonState . " Time: " . ElapsedTime) ; . "LBold: " . LButtonStateOld)
@@ -862,13 +876,14 @@ Return
 			LButtonStateOld:=LButtonState
 			iLKMbusy:=0
 		}
-		RKM(x, y, RButtonState) {
+		RKM(x, y) {
 			Static xOld, yOld, RButtonStateOld=0, iRKMbusy, event
 			if iRKMbusy
 				Return
 			iRKMbusy:=1
 			if !gisState
 			{
+				RButtonState := GetKeyState("RButton","P")
 				if (RButtonStateOld && RButtonState && (x!=xOld || y!=yOld)) { ; move restored win by pressing RKM
 					WinGetPos, gisX, gisY,,, ahk_id %gisID%
 					gisXnew:=gisX + x-xOld
@@ -910,12 +925,14 @@ Return
 			{
 				Critical
 				Sleep 100
+				; CoordMode Mouse, Screen
 				MouseGetPos,xMW,yMW
-				if (yMW<=5)&&gisState&&(iToolbarByMouse=0)
+				; msg(xMW " " yMW)
+				if ((yMW<=9) && gisState && (iToolbarByMouse=0))
 				{
 					Control, Show,,, AHK_id %XTPDockBar%
-					Sleep 200
 					iToolbarByMouse:=1
+					Sleep 200
 				}
 			}
 			if (iToolbarByMouse&&(yMW>heightAboveMap)) ; hide
