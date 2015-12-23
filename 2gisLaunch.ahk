@@ -66,6 +66,7 @@ if %0%>0
 		IfWinNotExist, AHK_class %gisClass%
 		{
 			Process, Close, %grymPID%
+			grymPID:=0
 			alreadyexist:=0
 		} Else {
 			SetHookShellProc()
@@ -494,7 +495,7 @@ Return
 		}
 	_kill(grymPID) {
 		Process, Close, %grymPID%
-		MsgBox,,1,Не дождался появления главного окна 2ГИС,3
+		MsgBox,,_kill,Не дождался появления главного окна 2ГИС,3
 		ExitApp
 		}
 	prefer() {
@@ -631,8 +632,10 @@ Return
 		}
 	checkProcessExist() {
 		Process, Exist, %grymPID%
-		If !ErrorLevel
-			ExitApp
+		If (!ErrorLevel) {
+			; MsgBox,,checkProcessExist(),Процесс %grymPID% не обнаружен,3
+			ExitApp, 1
+		}
 	}
 	RegReadWrite(ValueType, RootKey, SubKey, ValueName:="", Value:="") {
 		AccessMsg:="Доступ к реестру требуется, чтобы настроить 2ГИС для работы с лаунчером.`nУстанавливаемые настройки:`n1) Боковая панель располагается справа от карты`n2) Лента поиска приводится к свернутому виду`n3) Рубрикатор при старте не показывается`n4) Устанавливается ассоциация файлов городов *.dgdat на лаунчер"
@@ -714,24 +717,23 @@ Return
 	ShellProc(nCode)  {
 		Critical
 	    if ((nCode = 1) || (nCode = 2)) { ;|| (nCode = 4) || (nCode = 32772)) {
-			cls(nCode)
+				cls(nCode)
 	    } else if ((nCode = 4) || (nCode = 32772))
-			checkActiveWin()
+				checkActiveWin()
 
-			if nCode
-				checkPreferenceWin()
+			; if ((nCode = 6) || (nCode = 2))
+			; 	checkPreferenceWin(nCode)
 		}
 
-		checkPreferenceWin() {
+		checkPreferenceWin(nCode) {
 			SetTimer, CheckPreferenceWinExist, -50
 			Return
 
 			CheckPreferenceWinExist:
 			IfWinExist, Общие настройки ahk_class #32770
-				msg("Preference " nCode)
+				msg("Pre")
 			Return
 		}
-
 		cls(nCode) {
 			DetectHiddenWindows, on
 			SetWinDelay, 0
@@ -757,13 +759,15 @@ Return
 			DetectHiddenWindows, off
 			Return
 
-		CheckProcesExist:
-			Process, Exist, %grymPID%
-			If (ErrorLevel=0) {
-				; MsgBox CheckProcesExist
-				ExitApp
-			}
-			Return
+			CheckProcesExist:
+				if grymPID {
+					Process, Exist, %grymPID%
+					If (ErrorLevel=0) {
+						; MsgBox CheckProcesExist: %grymPID%
+						ExitApp
+					}
+				}
+				Return
 		}
 		checkActiveWin() {
 			if iGisActiv {
