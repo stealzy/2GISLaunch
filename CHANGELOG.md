@@ -1,4 +1,3 @@
 2GISLaunch
 =
-version 1.0
-* Начальная версия.
+Version 1.0
