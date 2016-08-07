@@ -53,7 +53,7 @@ if %0%>0
 	Global fShowSideBar, iShowDockBar, fAutoHideLineAndCompas, fAutoShowToolBarByMouse, fDisableTimeRestrictions, fFirstRun, ShowF1tip
 	Global gisState, iGisActiv=0, iShowLineKompas, iShowInstruments, fSideBarRight, iToolbarByMouse=0
 	Global LButtonState:=0, RButtonState:=0
-	Global autoCheck, autoDownload, CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX
+	Global fautoCheck, fautoDownload, FILE_URL, CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX
 
 	If (SubStr(A_ScriptDir,1,16) = "C:\Program Files")
 		iniPath := A_AppData "\2gisLaunch.ini"
@@ -67,16 +67,16 @@ if %0%>0
 		IniRead, fAutoShowToolBarByMouse, % iniPath, preference, AutoShow ToolBar, 1
 		IniRead, fDisableTimeRestrictions, % iniPath, preference, Bypass Time Restrictions, 0
 		IniRead, ShowF1tip, % iniPath, preference, Show F1 tip, 1
-		IniRead, autoCheck, % iniPath, update, auto check, 1
-		IniRead, autoDownload, % iniPath, update, auto download, 1
+		IniRead, fautoCheck, % iniPath, update, auto check, 1
+		IniRead, fautoDownload, % iniPath, update, auto download, 1
 	}
 
-	FILE := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/2gisLaunch.ahk"
-	mode := 2*!autoCheck + 4*!autoDownload
+	FILE_URL := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/2gisLaunch.ahk"
+	mode := 2*!fautoCheck + 4*!fautoDownload
 	CHANGELOG_URL := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/CHANGELOG.md"
-	VERSION_REGEX := "Oi)(?<=Version )?(\d+(?:\.\d+)?)"
+	VERSION_REGEX := "Oi)\R(\d+\.?\d+)\R"
 	WhatNew_REGEX := "Ois)(?<=----)\R(.*?)(\R\R|$)"
-	AutoUpdate(FILE, mode, 7, [CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX])
+
 }
 { ; run/activate
 	If A_IsAdmin ; Association *.dgdat files with launcher
@@ -244,6 +244,7 @@ SetTimer getWinStateMinMax, 200
 SetTimer checkProcessExist, 1000
 SetTimer timeRestriction, 1000
 SetTimer CheckPreferenceWinExist, 100
+SetTimer AutoUpdate, -10000
 If ShowF1tip
 	prefer()
 Return
@@ -616,8 +617,8 @@ Return
 		IniWrite, %fAutoShowToolBarByMouse%, % iniPath, preference, AutoShow ToolBar
 		IniWrite, %ShowF1tip%, % iniPath, preference, Show F1 tip
 		IniWrite, %fDisableTimeRestrictions%, % iniPath, preference, Bypass Time Restrictions
-		IniWrite, %autoCheck%, % iniPath, update, auto check
-		IniWrite, %autoDownload%, % iniPath, update, auto download
+		IniWrite, %fautoCheck%, % iniPath, update, auto check
+		IniWrite, %fautoDownload%, % iniPath, update, auto download
 		}
 	_close() {
 		PostMessage, 0x112, 0xF060,,, AHK_id %gisID% ; 0x112 = WM_SYSCOMMAND, 0xF060 = SC_CLOSE
@@ -671,9 +672,11 @@ Return
 		Gui, Preference: Tab, 3
 		IfExist, %A_ScriptDir%\2gisLaunch.png
 			Gui, Preference: Add, Picture, y+8 w260 h190, %A_ScriptDir%\2gisLaunch.png
-		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease 2.0 ;x+270 y+20
+		vers := GetCurrentVer(GetNameNoExt(A_ScriptName) . ".ini") ? GetCurrentVer(GetNameNoExt(A_ScriptName) . ".ini") : GetCurrentVerFromScript("Oi)(?:^|\R);\s*ver\w*\s*=?\s*(\d+(?:\.\d+)?)(?:$|\R)")
+		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease %vers% ;x+270 y+20
 		Gui, Preference: Add, Link,, Home page on <a href="https://github.com/stealzy/2GISLaunch">GitHub</a>.
 		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>.
+		Gui, Preference: Add, Button, gcheckUpdate h21 y+15, Проверить обновления
 		Gui, Preference: Tab, 2
 		Gui, Preference: Add, Text,, `tГорячие клавиши:
 		Gui, Preference: Add, Text,y+2, F1`t`t`t`t—  показать это окно`nCtrl+ -/=`; Ctrl+Pgdn/Pgup`t—  смена маштаба от положения курсора`nPgdn/Pgup `t`t`t—  смена маштаба от центра карты`nTab `t`t`t`t—  переключение между поиском и картой`nAlt+Enter; клик колесом мыши`t—  развернуть / восстановить окно`nВстроенные: `t`tF5 — радиус, F6 — длина,  F8, F9 — поиск. ;`nНеразвернутое окно можно перетаскивать правой кнопкой мыши
@@ -687,16 +690,18 @@ Return
 		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse%, Автоматическое появление  Полосы заголовка `nпри подведении курсора к верх. краю в полноэкранном режиме.
 		Gui, Preference: Add, Checkbox, vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow, Отключить ограничение по времени`n(можно пользоваться больше 3 месяцев без обновления)
 		Gui, Preference: Add, Checkbox, vfAutoHideLineAndCompas Checked%fAutoHideLineAndCompas%, Автоматическое появление  Маштабной линейки и Компаса`nпри подведении курсора к месту их расположения.
+		Gui, Preference: Add, Checkbox, vfautoCheck Checked%fautoCheck% y+10 gUnCheckautoDownload hwndChBoxautoCheck, Автоматическая проверка обновлений
+		Gui, Preference: Add, Checkbox, vfautoDownload Checked%fautoDownload% y+10, Автоматическая загрузка обновлений
 		RegRead, assOpenKey, HKEY_CLASSES_ROOT, 2gisLaunch\shell\open\command
 		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""))) {
-			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h21 w300, Установить ассоциацию на файлы городов *.dgdat
+			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h21 w300 y+10, Установить ассоциацию на файлы городов *.dgdat
 			GuiButtonIcon(Icon, "imageres.dll", 74, "a0 l2")
 		}
 		; Gui, Preference: Add, Button, gСохранить xm+12 ym+230 w70 h21 , Сохранить
-		Gui, Preference: Add, Button, greadAndCreateLinksToCitys h21, Создать ярлыки к городам на рабочий стол
+		Gui, Preference: Add, Button, greadAndCreateLinksToCitys h21 y+10, Создать ярлыки к городам на рабочий стол
 		Gui, Preference: Tab
 		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
-		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+20 yp+3, Показывать при следующем запуске
+		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+110 yp+3, Показывать при следующем запуске
 		Gui, Preference: Color, B2B9B3, F2F9F3
 		Gui, Preference: -Caption +AlwaysOnTop +ToolWindow -SysMenu
 		Gui, Preference: +HwndPreferenceGuiHwnd
@@ -726,8 +731,8 @@ Return
 			Sleep 100
 			Return
 		RestartNow:
-			Gui, Preference: Tab, 1
-			Gui, Preference: Add, Button, Default x22 y200 gRestart, Перезапустить
+			Gui, Preference: Tab
+			Gui, Preference: Add, Button, Default h20 xm+80 ym+236 gRestart, Перезапустить
 			Return
 		Restart:
 			Gui, Preference: Submit
@@ -749,6 +754,14 @@ Return
 				Run explorer.exe "C:\Program Files\2gis\3.0"
 			else
 				MsgBox, Директория не найдена
+			Return
+		UnCheckautoDownload:
+			GuiControlGet, CheckBoxState,, fautoCheck
+			if !CheckBoxState {
+				GuiControl,, fautoDownload,0
+				GuiControl, Disable, fautoDownload
+			} else
+				GuiControl, Enable, fautoDownload
 			Return
 		}
 	Exit:
@@ -794,6 +807,12 @@ Return
 		}
 
 		; If WinExist("Информация справочника устарела ahk_class #32770")
+		Return
+	AutoUpdate:
+		AutoUpdate(FILE_URL, mode, 7, [CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX])
+		Return
+	checkUpdate:
+		AutoUpdate(FILE_URL, 5, 0, [CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX])
 		Return
 	readAndCreateLinksToCitys() {
 		Loop, *.dgdat, 0
@@ -1389,7 +1408,7 @@ Return
 	AutoUpdate(FILE, mode:=0, updateIntervalDays:=7, CHANGELOG:="", iniFile:="", backupNumber:=1) {
 		iniFile := iniFile ? iniFile : GetNameNoExt(A_ScriptName) . ".ini"
 		VERSION_FromScript_REGEX := "Oi)(?:^|\R);\s*ver\w*\s*=?\s*(\d+(?:\.\d+)?)(?:$|\R)"
-		currVer := GetCurrentVer(iniFile)
+
 		if NeedToCheckUpdate(mode, updateIntervalDays, iniFile) {
 			if (CHANGELOG!="") {
 				if Not (currVer := GetCurrentVer(iniFile))
@@ -1419,7 +1438,7 @@ Return
 		} else if (A_Now > GetTimeToUpdate(updateIntervalDays, iniFile)) || (manually := mode & 1) {
 			NeedToCheckUpdate := True
 		}
-		OutputDebug % "NeedToCheckUpdate: " (NeedToCheckUpdate ? "Yes" : "No")
+		OutputDebug % "NeedToCheckUpdate: " (NeedToCheckUpdate ? "Yes" : "No") ", mode: " mode
 		Return NeedToCheckUpdate
 	}
 	Update(FILE, mode, backupNumber, iniFile, currVer, lastVer, LastVerNews:="") {
@@ -1523,7 +1542,7 @@ Return
 		If IsObject(CHANGELOG) {
 			Regex := CHANGELOG[2]
 			RegExMatch(changelogContent, Regex, changelogContentObj)
-			lastVer := changelogContentObj.0
+			lastVer := changelogContentObj.1
 		} else
 			lastVer := changelogContent
 
