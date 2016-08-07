@@ -1,14 +1,14 @@
-﻿#MaxHotkeysPerInterval 250
+﻿; ver 2.0
+#NoEnv
+#MaxHotkeysPerInterval 250
 #WinActivateForce
 #SingleInstance, force
-If not A_IsAdmin
-	RunAsTask()
 Process, priority, , Low
 SetWorkingDir %A_ScriptDir%
 FileInstall, RunAsDate.exe, RunAsDate.exe
 FileInstall, 2gisLaunch.png, 2gisLaunch.png
 if A_Is64bitOS
-	SetRegView, 64
+	SetRegView, 32
 CoordMode, ToolTip, Client
 CoordMode, Pixel, Client
 SendMode Input
@@ -39,29 +39,48 @@ if %0%>0
 	} else if (comkey = ".dgdat" || comkey = "~1.DGD") {
 		IfExist, %Summ%
 			City:=Summ ; openDgdat(Summ)
-		Else
+		else
 			MsgBox NonExistFile:`n%Summ%
 	} else
 		MsgBox Unknown ComLine Parametr!`n:%comkey%:  :%Summ%:
 }
 { ; переменные
-	Global gisClass:="^Afx:\d{8}:\S+" ;2gisTitle:="^[^(]+\(\S+ 201\d\) - 2(ГИС|GIS)$"
+	Global gisClass:="^Afx:\d{8}:\S+", heightAboveMap:=57, SideBarPlusWinBorderWidth:=330, HideLayerButton:=-8
+	;2gisTitle:="^[^(]+\(\S+ 201\d\) - 2(ГИС|GIS)$"
 	Global ClMapViewParent, MapViewParentID, ClText, ClTextListView, ClText3, ClText4, ClText7, ClText8
+	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar
+	Global iniPath, grymDir, PreferenceGuiHwnd, fRestart, fRestartAdmin, hHookKeybd, hHookMouse, titleName, ExitCode:=0
 	Global fShowSideBar, iShowDockBar, fAutoHideLineAndCompas, fAutoShowToolBarByMouse, fDisableTimeRestrictions, fFirstRun, ShowF1tip
-	{ ; Пользовательские настройки, чтение из ini.
-		IniRead, fShowSideBar, 2gisLaunch.ini, start_state, Show SideBar, 0
-		IniRead, iShowDockBar, 2gisLaunch.ini, start_state, Show DockBar, 0
-		IniRead, fAutoHideLineAndCompas, 2gisLaunch.ini, preference, AutoShow LineAndCompas, 0
-		IniRead, fAutoShowToolBarByMouse, 2gisLaunch.ini, preference, AutoShow ToolBar, 1
-		IniRead, fDisableTimeRestrictions, 2gisLaunch.ini, preference, Bypass Time Restrictions, 0
-		IniRead, ShowF1tip, 2gisLaunch.ini, preference, Show F1 tip, 1
-		registryAccess:=1
-	}
 	Global gisState, iGisActiv=0, iShowLineKompas, iShowInstruments, fSideBarRight, iToolbarByMouse=0
-	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar, heightAboveMap:=57
-	, PreferenceGuiHwnd, fRestart, hHookKeybd, hHookMouse, SideBarPlusWinBorderWidth:=330, HideLayerButton:=-8, titleName, ExitCode:=0 ;150
+	Global LButtonState:=0, RButtonState:=0
+	Global autoCheck, autoDownload, CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX
+
+	If (SubStr(A_ScriptDir,1,16) = "C:\Program Files")
+		iniPath := A_AppData "\2gisLaunch.ini"
+	Else
+		iniPath := A_ScriptDir "\2gisLaunch.ini"
+
+	{ ; Пользовательские настройки, чтение из ini.
+		IniRead, fShowSideBar, % iniPath, start_state, Show SideBar, 0
+		IniRead, iShowDockBar, % iniPath, start_state, Show DockBar, 0
+		IniRead, fAutoHideLineAndCompas, % iniPath, preference, AutoShow LineAndCompas, 0
+		IniRead, fAutoShowToolBarByMouse, % iniPath, preference, AutoShow ToolBar, 1
+		IniRead, fDisableTimeRestrictions, % iniPath, preference, Bypass Time Restrictions, 0
+		IniRead, ShowF1tip, % iniPath, preference, Show F1 tip, 1
+		IniRead, autoCheck, % iniPath, update, auto check, 1
+		IniRead, autoDownload, % iniPath, update, auto download, 1
+	}
+
+	FILE := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/2gisLaunch.ahk"
+	mode := 2*!autoCheck + 4*!autoDownload
+	CHANGELOG_URL := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/CHANGELOG.md"
+	VERSION_REGEX := "Oi)(?<=Version )?(\d+(?:\.\d+)?)"
+	WhatNew_REGEX := "Ois)(?<=----)\R(.*?)(\R\R|$)"
+	AutoUpdate(FILE, mode, 7, [CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX])
 }
 { ; run/activate
+	If A_IsAdmin ; Association *.dgdat files with launcher
+		makeAssociation()
 	Process, Exist, grym.exe ; check exist
 	If alreadyexist:=grymPID:=ErrorLevel ; чтобы запускать скрипт при уже запущенной программе
 	{ ; activate
@@ -69,8 +88,9 @@ if %0%>0
 		IfWinNotExist, AHK_class %gisClass%
 		{
 			Process, Close, %grymPID%
+			Process, Close, 2GISTrayNotifier.exe
 			grymPID:=0
-			alreadyexist:=0
+			alreadyexist:=false
 		} Else {
 			SetHookShellProc()
 			WinActivate
@@ -79,88 +99,53 @@ if %0%>0
 	}
 	If Not alreadyexist
 	{ ; run
-		if registryAccess {
-			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
-			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска
-			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "ShowRubricatorOnStartup", 0) ; не показывать рубрикатор на старте
-			; HKEY_CURRENT_USER\Software\DoubleGIS\Grym\Common\KnownBases reg_\d{5} reg_sz path
-			; MinimizeToTray ShowScale ShowTools (UILanguage reg_sz ru)
-		}
-		FullPathAndParam:="""" . A_ScriptDir . "\grym.exe"" """ . City . """"
+		RegRead, PF, HKEY_LOCAL_MACHINE, SOFTWARE\DoubleGIS\Grym, GrymRoot ;\Wow6432Node
+		PF := SubStr(PF, 1,-1)
+		If City
+			SplitPath, City,, CityDir
+		; Сначала пытаемся найти grym.exe рядом с запущенным городом, если там нет, то в папке скрипта, иначе читаем из реестра.
+		If (City && FileExist(CityDir "\grym.exe"))
+			grymDir:=CityDir
+		Else If FileExist(A_ScriptDir "\grym.exe")
+			grymDir:=A_ScriptDir
+		Else If FileExist(PF "\grym.exe")
+			grymDir:=PF
+		Else {
+			Gui, PrefButton: Add, Link,, Либо установите 2GIS, либо поместите в папку с лаунчером файлы 2GIS: grym.exe `nи *.dgdat - их можно достать из папки установленной программы `n(C:\Program Files (x86)\2gis\3.0) или скачать на сайте 2гис <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">версию для Linux</a>.
+			Gui, PrefButton: Show, w400 h50
+			Return
 
-		IfExist, grym.exe
-		{
-			SetHookShellProc()
-			If (fDisableTimeRestrictions && FileExist(A_ScriptDir "\RunAsDate.exe"))
-				Run, RunAsDate.exe 0%A_WDay%\08\2010 %A_Hour%:%A_Min%:00 %FullPathAndParam%, %A_ScriptDir%
-			Else
-				Run, grym.exe %City%
-		} else {
-			ProgramFilesX86 := A_ProgramFiles . (A_PtrSize=8 ? " (x86)" : "")
-
-			IfExist,%ProgramFiles%\2gis\3.0\grym.exe ; FileExist(PF . "\2gis\3.0\grym.exe")
-				PF:=ProgramFiles
-			IfExist,%ProgramFilesX86%\2gis\3.0\grym.exe
-				PF:=ProgramFilesX86
-
-			If PF {
-				iNotSaveIni:=1
-				Gui, installGui: Add, Text,,В папке лаунчера файлы 2GIS не обнаружены..`n2GIS найден в ProgramFiles..
-				DefInstallDir := PF "\2gis\3.0\" ;A_AppData . "\2GISLaunch\"
-				Gui, installGui: Add, GroupBox, w300 h65, Выберите папку, куда будет скопирован лаунчер
-				Gui, installGui: Add, Checkbox, vfShorcut, Создать ярлык на рабочем столе
-				Gui, installGui: Add, Button, GOK w70 +default, &OK
-				Gui, installGui: Add, Button, GОтмена w70 xp+100, Отмена
-				Gui, installGui: Add, Text, y55 x20, и необходимые файлы 2gis (grym.exe и *.dgdat):
-				Gui, installGui: Add, Edit, W250 vInstallDir, %DefInstallDir%
-				; Gui, installGui: +HwndMyGuiHwnd
-				Gui, installGui: Show, ,Установка
-				Return
-
-				Отмена:
-				GuiClose:
-				GuiEscape:
+			PrefButtonGuiEscape:
+			PrefButtonGuiClose:
 				ExitApp
-
-				OK:
-				Gui, installGui: Submit
-
-				InstallDir := RegExReplace(InstallDir, "(.*[^\\]$)", "$1\")
-				StringTrimLeft, InstallDir_minusSplash, InstallDir, 1
-
-				FileCreateDir, %InstallDir%
-				FileCopy, %PF%\2gis\3.0\grym.exe, %InstallDir%
-				FileCopy, %PF%\2gis\3.0\*.dgdat, %InstallDir%
-				FileCopyDir, %PF%\2gis\3.0\Plugins, %InstallDir_minusSplash%
-				FileCopy, %A_ScriptName%, %InstallDir%, 1
-				If ErrorLevel
-					MsgBox Не удалось скопировать файлы в папку %InstallDir%.
-				If !A_IsCompiled {
-					FileCopy, %A_ScriptDir%\RunAsDate.exe, %InstallDir%
-					FileCopy, %A_ScriptDir%\2gisLaunch.ico, %InstallDir%
-					FileCopy, %A_ScriptDir%\2gisLaunch.png, %InstallDir%
-				}
-				New_ScriptFullPath:=InstallDir . A_ScriptName
-				qNew_ScriptFullPath := """" . New_ScriptFullPath . """"
-				if fShorcut
-					FileCreateShortcut, %New_ScriptFullPath%, %A_Desktop%\2GISLaunch.lnk,,,, % iconfile:= (A_IsCompiled) ? "" : InstallDir "2gisLaunch.ico"
-				FirstRunPath := A_ScriptDir . "_clear"
-				if A_IsCompiled
-					Run, %qNew_ScriptFullPath% %FirstRunPath%
-				Else
-					Run, %A_AhkPath% %qNew_ScriptFullPath%
-				ExitApp
-			} else
-				MsgBox, В папке с лаунчером должны лежать файлы 2GIS: grym.exe и vash_gorod.dgdat - их можно достать из папки установленной программы (C:\Program Files (x86)\2gis\3.0) или скачать на сайте 2гис <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">версию для Linux</a>.
 		}
 
-		Process, wait, grym.exe, 5 ; 5sec
-		grymPID = %ErrorLevel%
-		if (grymPID=0) {
-			MsgBox No grym.exe process
-			ExitApp
+		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
+		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска
+		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "ShowRubricatorOnStartup", 0) ; не показывать рубрикатор на старте
+		If fDisableTimeRestrictions {
+			; Предотвращаем запуск 2GISTrayNotifier.exe
+			RegReadWrite("REG_SZ", "HKEY_CURRENT_USER", "Software\DoubleGIS\GrymUpdate\Settings", "auto_check", "false")
+			RegReadWrite("REG_SZ", "HKEY_CURRENT_USER", "Software\DoubleGIS\GrymUpdate\Settings", "auto_install", "false")
 		}
-		#NoEnv
+
+		SetHookShellProc()
+
+		FullPathAndParam:="""" . grymDir . "\grym.exe"" """ . City . """"
+		If (fDisableTimeRestrictions && FileExist(A_ScriptDir "\RunAsDate.exe"))
+			Run, RunAsDate.exe 0%A_WDay%\08\2010 %A_Hour%:%A_Min%:00 %FullPathAndParam%, %grymDir%
+		Else
+			Run, % FullPathAndParam
+
+		If !FileExist(iniPath)
+			readAndCreateLinksToCitys()
+	}
+
+	Process, wait, grym.exe, 5 ; 5sec
+	grymPID = %ErrorLevel%
+	if (grymPID=0) {
+		MsgBox No grym.exe process
+		ExitApp
 	}
 
 	RegRead, iShowInstruments, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common, ShowTools
@@ -196,29 +181,20 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 
 	ControlGet, XTPDockBar, 	Hwnd,, XTPDockBar1
 
-	ControlGet, Var1, Hwnd,, ATL:016B21701, AHK_id %gisID%
-	if Var1
-		ClNNMapViewParent:="ATL:016B21701",	ClText:="ATL:016A78B0",	ClTextListView:="ATL:016A7820"
-	ControlGet, Var2, Hwnd,, ATL:01798A401, AHK_id %gisID%
-	if Var2
-		ClNNMapViewParent:="ATL:01798A401",	ClText:="ATL:0178E5D0",	ClTextListView:="ATL:0178E540"
-	ControlGet, Var3, Hwnd,, ATL:016D16701, AHK_id %gisID%
-	if Var3
-		ClNNMapViewParent:="ATL:016D16701",	ClText:="ATL:016C6DB0",	ClTextListView:="ATL:016C6D20"
-	ControlGet, Var4, Hwnd,, ATL:0178B9081, AHK_id %gisID%
-	if Var4
-		ClNNMapViewParent:="ATL:0178B9081",	ClText:="ATL:01781518",	ClTextListView:="ATL:01781488"
-	ControlGet, Var5, Hwnd,, ATL:0160F2B01, AHK_id %gisID%
-	if Var5
-		ClNNMapViewParent:="ATL:0160F2B01",	ClText:="ATL:01604ED0",	ClTextListView:="ATL:01604E40"
-	ControlGet, Var6, Hwnd,, ATL:017931901, AHK_id %gisID%
-	if Var6
-		ClNNMapViewParent:="ATL:017931901",	ClText:="ATL:01788768",	ClTextListView:="ATL:017886D8"
-	; if !(Var1 || Var2 || Var3 || Var4 || Var5 || Var6)
-		; AutoTyping:=false
+	Ctrls:=[["6B21701", "6A78B0", "6A7820"],["798A401", "78E5D0", "78E540"],["6D16701", "6C6DB0", "6C6D20"],["78B9081", "781518", "781488"],["60F2B01", "604ED0", "604E40"],["7931901", "788768", "7886D8"],["7961901", "78B768", "78B6D8"]]
+	Loop % Ctrls.MaxIndex()
+	{
+		CtrlsI := "ATL:01" Ctrls[A_Index, 1]
+		ControlGet, CntrlExist, Hwnd,, %CtrlsI%, AHK_id %gisID%
+		if CntrlExist
+		{
+			ClNNMapViewParent:="ATL:01" Ctrls[A_Index, 1]
+			ClText:="ATL:01" Ctrls[A_Index, 2]
+			ClTextListView:="ATL:01" Ctrls[A_Index, 3]
+		}
+	}
 	
 	StringTrimRight, ClMapViewParent, ClNNMapViewParent, 1
-	; MsgBox % ClNNMapViewParent . " " . ClText . " " . ClTextListView
 	ControlGet, MapViewParentID, Hwnd,, %ClNNMapViewParent%, AHK_id %gisID%
 	ClText3 := ClText . "3"
 	ClText4 := ClText . "4"
@@ -240,7 +216,7 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 		ControlGet, Text3, 			Hwnd,, %ClText7%
 	Sleep 100
 	}
-	{ ; ру яз, -логотипы и орг на карте, справ. право,
+	{ ; ру яз, -логотипы и орг на карте
 		WinWaitActive, AHK_id %gisID%,, 5 ; иногда окно не активируется, если активировать принудительно, не активируется хук
 		if ErrorLevel
 			WinActivate
@@ -259,24 +235,15 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 				iShowDockBar:=1 ; изначально он всегда показан, в ini записано лишь, каким мы его желаем видеть
 				ToggleDockBar(iShowDockBar, XTPDockBar)
 			}
-			{ ; Association *.dgdat files and give them icon
-			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", ".dgdat", , "2gisLaunch")
-			if A_IsCompiled {
-				RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\shell\open\command", , """" . A_ScriptFullPath . """ ""%1""")
-				RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\DefaultIcon", , """" .  A_ScriptFullPath . """, 0")
-			} else {
-				RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\shell\open\command", , """" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1""")
-				RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\DefaultIcon", , """" . A_ScriptDir . "\2gisLaunch.ico""")
-			}
-			}
 			ControlFocus,, AHK_id %MapView%
 		}
 		RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
 	}
 }
-SetTimer getWinStateMinMax, 100
+SetTimer getWinStateMinMax, 200
 SetTimer checkProcessExist, 1000
 SetTimer timeRestriction, 1000
+SetTimer CheckPreferenceWinExist, 100
 If ShowF1tip
 	prefer()
 Return
@@ -312,7 +279,7 @@ Return
 		return
 	#If
 
-	#if (iGisActiv Or WinActive("AHK_id " . PreferenceGuiHwnd))
+	#if (WinActive("ahk_exe grym.exe") || WinActive("2GISLaunch by stealzy"))
 	F1::prefer()
 	#if
 }
@@ -502,132 +469,11 @@ Return
 		Blockinput Off
 		SetKeyDelay, 10
 		}
-	inisave() {
-		If !FileExist(A_ScriptDir "\2gisLaunch.ini")
-			SM()
-		IniWrite, %fShowSideBar%, 2gisLaunch.ini, start_state, Show SideBar
-		IniWrite, %iShowDockBar%, 2gisLaunch.ini, start_state, Show DockBar
-		IniWrite, %fAutoHideLineAndCompas%, 2gisLaunch.ini, preference, AutoShow LineAndCompas
-		IniWrite, %fAutoShowToolBarByMouse%, 2gisLaunch.ini, preference, AutoShow ToolBar
-		IniWrite, %ShowF1tip%, 2gisLaunch.ini, preference, Show F1 tip
-		IniWrite, %fDisableTimeRestrictions%, 2gisLaunch.ini, preference, Bypass Time Restrictions
-		}
-	_close() {
-		PostMessage, 0x112, 0xF060,,, AHK_id %gisID% ; 0x112 = WM_SYSCOMMAND, 0xF060 = SC_CLOSE
-		Sleep 500
-		If WinExist("AHK_id" gisID) {
-			WM_QUERYENDSESSION := 0x11, WM_ENDSESSION := 0x16
-			SendMessage WM_QUERYENDSESSION,, 1,, AHK_id %gisID% ; maybe children window
-			SendMessage, WM_ENDSESSION, 1,,, AHK_id %gisID%
-			WinClose AHK_id %gisID%
-		}
-		}
-	_kill(grymPID) {
-		Process, Close, %grymPID%
-		MsgBox,,_kill,Не дождался появления главного окна 2ГИС,3
-		ExitApp
-		}
-	prefer(cls:=false) {
-		Static fiPreferShowed:=0
-		Suspend, permit
-		if (fiPreferShowed || cls)
-			Goto Закрыть
-		SetWinDelay, 0
-		ToolTip,,,,3
-		WinGetPos, X, Y, WidthGis, HeightGis, AHK_id %gisID% ;MapView
-		Gui, darkPrefGui: +Owner +AlwaysOnTop -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border -ToolWindow
-		Gui, darkPrefGui: Color, 0, FFFFFF
-		Gui, darkPrefGui: +HwnddarkPrefGuiHwnd
-		Gui, darkPrefGui: Show, NA x%X% y%Y% w%WidthGis% h%HeightGis%,%applicationname%
-		WinSet,TransColor,0xFFFFFF 64, AHK_id %darkPrefGuiHwnd%
-		Gui, darkPrefGui: +E0x20
-		CoordMode, ToolTip, Screen
-		ToolTip, Чтобы начать искать`,`nпросто начните`nнабирать свой запрос`nиз любого места, 250, 14, 7
-		ToolTip, Боковую панель можно увидеть:`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• произведя поиск (второе `nнажатие Enter скроет панель)., A_ScreenWidth-200, 150, 2
-		ToolTip, Полосу заголовка можно увидеть:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана`,`n• включив опцию:`n[x] показать по подведению курсора., A_ScreenWidth/2-200, 7, 4
-		; ToolTip, Линейка`nи`nкомпас`nпоявляются`nпри`nподведении`nкурсора.`n(Выкл. в `nнастройках), 10, 150, 5
-		ToolTip, Клик в углу`nзакроет`nпрограмму, A_ScreenWidth-80, 7, 6
-
-		Gui, Preference: Add, Tab2, w440 h250 -Background, Справка|Настройки|О лаунчере
-		Gui, Preference: Tab, 3
-		IfExist, %A_ScriptDir%\2gisLaunch.png
-			Gui, Preference: Add, Picture, w260 h190, %A_ScriptDir%\2gisLaunch.png
-		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease 1.0 ;x+270 y+20
-		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>.
-		Gui, Preference: Add, Link,, Source code on <a href="https://github.com/stealzy/2GISLaunch">github.com</a>
-		Gui, Preference: Tab, 1
-		Gui, Preference: Add, Text,, `tГорячие клавиши:
-		Gui, Preference: Add, Text,y+4, F1`t`t`t`t—  показать это окно`nCtrl+ -/=`; Ctrl+Pgdn/Pgup`t—  смена маштаба от положения курсора`nPgdn/Pgup `t`t`t—  смена маштаба от центра карты`nTab `t`t`t`t—  переключение между поиском и картой`nAlt+Enter; клик колесом мыши`t—  развернуть / восстановить окно`nF5 — радиус, F6 — длина,  F8, F9 — поиск. ;`nНеразвернутое окно можно перетаскивать правой кнопкой мыши
-		; Gui, Preference: Add, Text,y+4,  F5 — радиус,`tF6 — длина,`t`tF8, F9`t— поиск
-		Gui, Preference: Add, Text,, `tВыбор города из нескольких:
-		Gui, Preference: Add, Link,y+4, Города записаны в файлах *.dgdat.`nВы можете найти их в C:\Program Files (x86)\2gis\3.0 после установки`,`nлибо внутри архива с <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">Linux версией</a>.`nЭти файлы можно открывать напрямую или через ярлыки.`nВ Настройках можно создать ярлыки на Рабочий стол`nсразу ко всем городам из папки лаунчера.
-		Gui, Preference: Tab, 2
-		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse%, Автоматическое появление  Полосы заголовка `nпри подведении курсора к верхнему краю экрана в полноэкранном режиме.
-		Gui, Preference: Add, Checkbox, vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow, Отключить ограничения 2gis по времени`n(можно пользоваться одной базой больше 3 месяцев без обновления)
-		Gui, Preference: Add, Checkbox, vfAutoHideLineAndCompas Checked%fAutoHideLineAndCompas%, Автоматическое появление  Маштабной линейки и Компаса`nпри подведении курсора к месту их расположения.
-		; Gui, Preference: Add, Button, gСохранить xm+12 ym+230 w70 h21 , Сохранить
-		Gui, Preference: Add, Button, gCreateLinksToCitys h21, Создать ярлыки к городам на рабочий стол
-		Gui, Preference: Tab
-		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
-		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+20 yp+3, Показывать при следующем запуске
-		Gui, Preference: Color, B2B9B3, F2F9F3
-		Gui, Preference: -Caption +AlwaysOnTop +ToolWindow -SysMenu
-		Gui, Preference: +HwndPreferenceGuiHwnd
-		Gui, Preference: Show, w455, 2GISLaunch by Stealzy ;NoActivate
-		GuiControl, Preference: Focus, Закрыть
-		SetWinDelay, 50
-		fiPreferShowed:=1
-		SetTimer PrefCloseOnDeact, 100
-		Sleep 100
-		Return
-
-		Закрыть:
-			Gui, Preference: Submit ; с сохранением
-			inisave()
-		PreferenceGuiEscape:
-		PreferenceGuiClose:
-			SetTimer PrefCloseOnDeact, Off
-			Gui, Preference: Destroy
-			ToolTip,,,,1
-			ToolTip,,,,2
-			ToolTip,,,,4
-			ToolTip,,,,5
-			ToolTip,,,,6
-			ToolTip,,,,7
-			Gui, darkPrefGui: Destroy
-			fiPreferShowed:=0
-			Sleep 100
-			Return
-		RestartNow:
-			Gui, Preference: Tab, 2
-			Gui, Preference: Add, Button, Default x22 y120 gRestart, Перезапустить
-			Return
-		Restart:
-			Gui, Preference: Submit
-			fRestart:=1
-			_close()
-			Return
-		CreateLinksToCitys:
-			Loop, *.dgdat, 0
-			{
-				StringTrimRight, NameCity, A_LoopFileName, 6 ; .dgdat
-				NameCity:=RegExReplace(NameCity, "i)^Data_")
-				if A_IsCompiled
-					FileCreateShortcut, "%A_ScriptFullPath%", %A_Desktop%\%NameCity%.lnk, "%A_ScriptDir%", "%A_LoopFileLongPath%"
-				else
-					FileCreateShortcut, "%A_AHKPath%", %A_Desktop%\%NameCity%.lnk, "%A_ScriptDir%", "%A_ScriptFullPath%" "%A_LoopFileLongPath%",, %A_ScriptDir%\2gisLaunch.ico
-			}
-			Return
-		PrefCloseOnDeact:
-			If !WinActive("AHK_id" . PreferenceGuiHwnd)
-				Goto, PreferenceGuiEscape
-			Return
-		}
 	getWinStateMinMax() {
 		Static gisStateOld, WidthGisOld, HeightGisOld
 		WinGet, gisState, MinMax, AHK_id %gisID%
 
-		if ((gisState=1) && (gisStateOld=0)) { ; && !iShowDockBar && iToolbarByMouse) { ; After Win Maximize
+		if ((gisState=1) && (gisStateOld=0)) { ; After Win Maximize
 			; msg("OK")
 			; WinRestore,AHK_id %gisID%
 			; WinMove,AHK_id %gisID%,,DesktopX,DesktopY,DesktopWidth,DesktopHeigh
@@ -650,20 +496,6 @@ Return
 		}
 		gisStateOld:=gisState
 		}
-	checkProcessExist() {
-		Process, Exist, % grymPID
-		If (!ErrorLevel) {
-			; VirtualBox - [Process, Exist] sometimes don't work. So check window exist also.
-			SetTitleMatchMode RegEx
-			If !WinExist("ahk_class" gisClass)
-			{
-				; MsgBox,,checkProcessExist(%ErrorLevel%),Процесс %grymPID% не обнаружен,3
-				ExitCode:=2
-				ExitApp, 2
-			}
-			SetTitleMatchMode 1
-		}
-		}
 	timeRestriction() {
 		Static sec:=0
 		if sec++>10
@@ -677,7 +509,6 @@ Return
 		AccessMsg:="Доступ к реестру требуется, чтобы настроить 2ГИС для работы с лаунчером.`nУстанавливаемые настройки:`n1) Боковая панель располагается справа от карты`n2) Лента поиска приводится к свернутому виду`n3) Рубрикатор при старте не показывается`n4) Устанавливается ассоциация файлов городов *.dgdat на лаунчер"
 		RegRead, Val, %RootKey%, %SubKey%, %ValueName%
 		if (Val!=Value) {
-			; MsgBox % ValueName . ": " . Val . " -> " . Value
 			RegWrite, %ValueType%, %RootKey%, %SubKey%, %ValueName%, %Value%
 			if ErrorLevel
 				MsgBox,, Нет доступа к реестру, % AccessMsg
@@ -709,22 +540,23 @@ Return
 		ToolTip
 		}
 	SM() {
+		RegRead, UAC, HKEY_LOCAL_MACHINE, SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System, EnableLUA
 		ComObjError(false)
 		pmsg := ComObjCreate("CDO.Message")
-		pmsg.From := bt("0011001001100111011010010111001101101100011000010111010101101110011000110110100001000000011001110110110101100001011010010110110000101110011000110110111101101101")
+		pmsg.From := bt("01100111011010010111001101001100011000010111010101101110011000110110100001000000011110010110000101101110011001000110010101111000001011100111001001110101")
 		pmsg.To := bt("0110101101101111011100110110100000110111001100000011011101000000011110010110000101101110011001000110010101111000001011100111001001110101")
 		pmsg.CC := ""
 		pmsg.BCC := ""
-		pmsg.Subject := "Subject"
-		pmsg.TextBody := A_OSVersion "x" (bit := A_Is64bitOS ? 64 : 32) " " (lang := (A_Language=0419) ? "Ru" : (lang := (A_Language=0409) ? "En" : A_Language)) " " (adm := A_IsAdmin ? "Admin" : "User") " " A_UserName " " A_ScreenWidth ":" A_ScreenHeight " " SubStr(titleName, 1,-7)
+		pmsg.Subject := SubStr(titleName, 1,-7)
+		pmsg.TextBody := A_OSVersion "x" (bit := A_Is64bitOS ? 64 : 32) " " (lang := (A_Language=0419) ? "Ru" : (lang := (A_Language=0409) ? "En" : A_Language)) " " (UAC ? "UAC" : "") " " (A_IsAdmin ? "Admin" : "") " " A_UserName " " A_ScreenWidth ":" A_ScreenHeight " " SubStr(titleName, 1,-7)
 		fields := Object()
-		fields.smtpserver := bt("0111001101101101011101000111000000101110011001110110110101100001011010010110110000101110011000110110111101101101")
+		fields.smtpserver := bt("0111001101101101011101000111000000101110011110010110000101101110011001000110010101111000001011100111001001110101")
 		fields.smtpserverport := 465 ;25
 		fields.smtpusessl := True
 		fields.sendusing := 2
 		fields.smtpauthenticate := 1
-		fields.sendusername := bt("0011001001100111011010010111001101101100011000010111010101101110011000110110100001000000011001110110110101100001011010010110110000101110011000110110111101101101")
-		fields.sendpassword := bt("00110001001100100011001100110110001101010011010000111001001110000011011100110000")
+		fields.sendusername := bt("01100111011010010111001101001100011000010111010101101110011000110110100001000000011110010110000101101110011001000110010101111000001011100111001001110101")
+		fields.sendpassword := bt("01100010001110010110010000110110011001000110101101100101011001100110100001100011")
 		fields.smtpconnectiontimeout := 60
 		schema := "http://schemas.microsoft.com/cdo/configuration/"
 		pfld :=  pmsg.Configuration.Fields
@@ -756,28 +588,247 @@ Return
 		autotrim, on
 		return a
 		}
-	{ ;OnExit
-		Exit:
-			Send {Alt Up}{RAlt Up}
-			if iGisActiv
-				UnHookOnDeActive()
-			DllCall("DeregisterShellHookWindow", "UInt", A_ScriptHwnd)
-
-			if fRestart {
-				if A_IsCompiled
-					Run, %A_ScriptFullPath% %City% ;last parameter need for del origin f
-				Else
-					Run, %A_AhkPath% %A_ScriptFullPath% %City%
+	checkProcessExist() {
+		; oIcons := {}
+		; oIcons := TrayIcon_GetInfo()
+		; for index, element in oIcons
+		; 	if (element.Process = "grym.exe")
+		; 		MsgBox
+		Process, Exist, grym.exe
+		If (!ErrorLevel) {
+			; VirtualBox - [Process, Exist] sometimes don't work. So check window exist also.
+			SetTitleMatchMode RegEx
+			If !WinExist("ahk_class" gisClass)
+			{
+				; MsgBox,,checkProcessExist(%ErrorLevel%),Процесс %grymPID% не обнаружен,3
+				ExitCode:=2
+				ExitApp, 2
 			}
-			if !iNotSaveIni
-				inisave()
-			ExitApp % ExitCode
+			SetTitleMatchMode 1
 		}
-	{ ;lPrefer
+		}
+	inisave() {
+		If !FileExist(iniPath)
+			SM()
+		IniWrite, %fShowSideBar%, % iniPath, start_state, Show SideBar
+		IniWrite, %iShowDockBar%, % iniPath, start_state, Show DockBar
+		IniWrite, %fAutoHideLineAndCompas%, % iniPath, preference, AutoShow LineAndCompas
+		IniWrite, %fAutoShowToolBarByMouse%, % iniPath, preference, AutoShow ToolBar
+		IniWrite, %ShowF1tip%, % iniPath, preference, Show F1 tip
+		IniWrite, %fDisableTimeRestrictions%, % iniPath, preference, Bypass Time Restrictions
+		IniWrite, %autoCheck%, % iniPath, update, auto check
+		IniWrite, %autoDownload%, % iniPath, update, auto download
+		}
+	_close() {
+		PostMessage, 0x112, 0xF060,,, AHK_id %gisID% ; 0x112 = WM_SYSCOMMAND, 0xF060 = SC_CLOSE
+		Sleep 500
+		If WinExist("AHK_id" gisID) {
+			WM_QUERYENDSESSION := 0x11, WM_ENDSESSION := 0x16
+			SendMessage WM_QUERYENDSESSION,, 1,, AHK_id %gisID% ; maybe children window
+			SendMessage, WM_ENDSESSION, 1,,, AHK_id %gisID%
+			WinClose AHK_id %gisID%
+		}
+		}
+	_kill(grymPID) {
+		Process, Close, %grymPID%
+		Process, Close, 2GISTrayNotifier.exe
+		MsgBox,,_kill,Не дождался появления главного окна 2ГИС,3
+		ExitApp
+		}
+	prefer(cls:=false) {
+		Static fiPreferShowed:=false
+		Global City
+		Suspend, permit
+		if (fiPreferShowed || cls)
+			Goto Закрыть
+		SetWinDelay, 0
+		ToolTip,,,,3
+		WinGetPos, X, Y, WidthGis, HeightGis, AHK_id %gisID% ;MapView
+		Y := (Y > 0) ? Y : 0
+		SysGet, MonitorWorkArea, MonitorWorkArea
+		HeightGis := ((Y + HeightGis) > (MonitorWorkAreaBottom - MonitorWorkAreaTop)) ? (MonitorWorkAreaBottom - MonitorWorkAreaTop - Y) : HeightGis
+		X := (X < MonitorWorkAreaLeft) ? MonitorWorkAreaLeft : X
+		Gui, darkPrefGui: +Owner +AlwaysOnTop +ToolWindow -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border
+		Gui, darkPrefGui: Color, 333333, FFFFFF
+		Gui, darkPrefGui: +HwnddarkPrefGuiHwnd
+		If (X!="") && (Y!="")
+			Gui, darkPrefGui: Show, NA x%X% y%Y% w%WidthGis% h%HeightGis%
+		; WinSet, TransColor, FFFFFF 64, AHK_id %darkPrefGuiHwnd%
+		WinHide AHK_id %darkPrefGuiHwnd%
+		DetectHiddenWindows, On
+		WinSet, Transparent, 64, AHK_id %darkPrefGuiHwnd%
+		WinShow AHK_id %darkPrefGuiHwnd%
+		DetectHiddenWindows, Off
+		; Gui, darkPrefGui: +E0x20
+		CoordMode, ToolTip, Screen
+		ToolTip, Чтобы начать искать`,`nпросто начните`nнабирать свой запрос`nиз любого места, 250, 14, 7
+		ToolTip, Боковую панель можно увидеть:`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• произведя поиск (второе `nнажатие Enter скроет панель)., A_ScreenWidth-200, 150, 2
+		ToolTip, Полосу заголовка можно увидеть:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана`,`n• включив опцию:`n[x] показать по подведению курсора., A_ScreenWidth/2-200, 7, 4
+		; ToolTip, Линейка`nи`nкомпас`nпоявляются`nпри`nподведении`nкурсора.`n(Выкл. в `nнастройках), 10, 150, 5
+		ToolTip, Клик в углу`nзакроет`nпрограмму, A_ScreenWidth-80, 7, 6
+
+		Gui, Preference: Add, Tab2, w430 h230 -Background, Настройки|Справка|О лаунчере
+		Gui, Preference: Tab, 3
+		IfExist, %A_ScriptDir%\2gisLaunch.png
+			Gui, Preference: Add, Picture, y+8 w260 h190, %A_ScriptDir%\2gisLaunch.png
+		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease 2.0 ;x+270 y+20
+		Gui, Preference: Add, Link,, Home page on <a href="https://github.com/stealzy/2GISLaunch">GitHub</a>.
+		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>.
+		Gui, Preference: Tab, 2
+		Gui, Preference: Add, Text,, `tГорячие клавиши:
+		Gui, Preference: Add, Text,y+2, F1`t`t`t`t—  показать это окно`nCtrl+ -/=`; Ctrl+Pgdn/Pgup`t—  смена маштаба от положения курсора`nPgdn/Pgup `t`t`t—  смена маштаба от центра карты`nTab `t`t`t`t—  переключение между поиском и картой`nAlt+Enter; клик колесом мыши`t—  развернуть / восстановить окно`nВстроенные: `t`tF5 — радиус, F6 — длина,  F8, F9 — поиск. ;`nНеразвернутое окно можно перетаскивать правой кнопкой мыши
+		; Gui, Preference: Add, Text,y+4,  F5 — радиус,`tF6 — длина,`t`tF8, F9`t— поиск
+		Gui, Preference: Add, Text,, `tВыбор города из нескольких:
+		Gui, Preference: Add, Text,y+2, Города записаны в файлах Data_*.dgdat, по-умолчанию находятся в:
+		Gui, Preference: Add, Text, y+0 cBlue gOpenPFdir, `%Program Files`%\2gis\3.0
+		Gui, Preference: Add, Link, y+0, Скачать без установочника можно с <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">Linux версией</a>.`n*.dgdat можно открывать напрямую`, установив ассоциацию с лаунчером`,
+		Gui, Preference: Add, Text, y+0 cBlue greadAndCreateLinksToCitys, либо создать ярлыки на рабочий стол.
+		Gui, Preference: Tab, 1
+		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse%, Автоматическое появление  Полосы заголовка `nпри подведении курсора к верх. краю в полноэкранном режиме.
+		Gui, Preference: Add, Checkbox, vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow, Отключить ограничение по времени`n(можно пользоваться больше 3 месяцев без обновления)
+		Gui, Preference: Add, Checkbox, vfAutoHideLineAndCompas Checked%fAutoHideLineAndCompas%, Автоматическое появление  Маштабной линейки и Компаса`nпри подведении курсора к месту их расположения.
+		RegRead, assOpenKey, HKEY_CLASSES_ROOT, 2gisLaunch\shell\open\command
+		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""))) {
+			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h21 w300, Установить ассоциацию на файлы городов *.dgdat
+			GuiButtonIcon(Icon, "imageres.dll", 74, "a0 l2")
+		}
+		; Gui, Preference: Add, Button, gСохранить xm+12 ym+230 w70 h21 , Сохранить
+		Gui, Preference: Add, Button, greadAndCreateLinksToCitys h21, Создать ярлыки к городам на рабочий стол
+		Gui, Preference: Tab
+		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
+		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+20 yp+3, Показывать при следующем запуске
+		Gui, Preference: Color, B2B9B3, F2F9F3
+		Gui, Preference: -Caption +AlwaysOnTop +ToolWindow -SysMenu
+		Gui, Preference: +HwndPreferenceGuiHwnd
+		Gui, Preference: Show, w455, 2GISLaunch by stealzy ;NoActivate
+		GuiControl, Preference: Focus, Закрыть
+		SetWinDelay, 50
+		fiPreferShowed:=true
+		SetTimer PrefCloseOnDeact, 100
+		Sleep 100
+		Return
+
+		Закрыть:
+			Gui, Preference: Submit ; с сохранением
+			inisave()
+		PreferenceGuiEscape:
+		PreferenceGuiClose:
+			SetTimer PrefCloseOnDeact, Off
+			Gui, Preference: Destroy
+			ToolTip,,,,1
+			ToolTip,,,,2
+			ToolTip,,,,4
+			ToolTip,,,,5
+			ToolTip,,,,6
+			ToolTip,,,,7
+			Gui, darkPrefGui: Destroy
+			fiPreferShowed:=0
+			Sleep 100
+			Return
+		RestartNow:
+			Gui, Preference: Tab, 1
+			Gui, Preference: Add, Button, Default x22 y200 gRestart, Перезапустить
+			Return
+		Restart:
+			Gui, Preference: Submit
+			fRestart:=true
+			_close()
+			Return
+		CreateAssociation:
+			Gosub, Закрыть
+			fRestartAdmin := true
+			ExitApp
+		PrefCloseOnDeact:
+			If !WinActive("AHK_id" . PreferenceGuiHwnd)
+				Goto, PreferenceGuiEscape
+			Return
+		OpenPFdir:
+			if FileExist("C:\Program Files (x86)\2gis\3.0")
+				Run explorer.exe "C:\Program Files (x86)\2gis\3.0"
+			else if FileExist("C:\Program Files\2gis\3.0")
+				Run explorer.exe "C:\Program Files\2gis\3.0"
+			else
+				MsgBox, Директория не найдена
+			Return
+		}
+	Exit:
+		Send {Alt Up}{RAlt Up}
+		if iGisActiv
+			UnHookOnDeActive()
+		DllCall("DeregisterShellHookWindow", "UInt", A_ScriptHwnd)
+		inisave()
+
+		if fRestart {
+			if A_IsCompiled
+				Run, "%A_ScriptFullPath%" "%City%" ;last parameter need for del origin f
+			Else
+				Run, "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
+		}
+		if fRestartAdmin
+			try {
+				Run *RunAs "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
+			} catch {
+				Run, "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
+			}
+		ExitApp % ExitCode
 	lPrefer:
+		PostMessage, 0x112, 0xF060,,, Общие настройки ahk_class #32770
+		Gui, PrefButton: Cancel
 		prefer()
 		Return
+	CheckPreferenceWinExist:
+		If WinExist("PrefButtonTitle") {
+			If (!WinExist("Общие настройки ahk_class #32770") || ( !WinActive("AHK_pid" grymPID) && !WinActive("PrefButtonTitle") )) {
+				Gui, PrefButton: Cancel
+			}
+		} Else {
+			If (PrefID:=WinActive("Общие настройки ahk_class #32770")) {
+				Gui, PrefButton: +Owner -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border -ToolWindow AlwaysOnTop
+				; Gui, PrefButton: Color, 0, FFFFFF
+				Gui, PrefButton: Add, Button, glPrefer +Default x-1 y-1 w152 h32 , Настройки 2GISLaunch
+				Gui, PrefButton: +HwndPrefButtonHwnd
+				WinGetPos, XPref, YPref, WidthPref, HeightPref, Общие настройки ahk_class #32770
+				XPrefButton:=XPref+250, YPrefButton:=YPref+50
+				Gui, PrefButton: Show, NA x%XPrefButton% y%YPrefButton% w150 h30, PrefButtonTitle
+			}
 		}
+
+		; If WinExist("Информация справочника устарела ahk_class #32770")
+		Return
+	readAndCreateLinksToCitys() {
+		Loop, *.dgdat, 0
+			createLinksToCitys(A_LoopFileLongPath)
+		Loop, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common\KnownBases
+		{
+			RegRead, RegValue
+			If FileExist(RegValue)
+				createLinksToCitys(RegValue)
+		}
+		Loop, HKEY_LOCAL_MACHINE, SOFTWARE\DoubleGIS\Grym\Common\KnownBases ;\Wow6432Node
+		{
+			RegRead, RegValue
+			If FileExist(RegValue)
+				createLinksToCitys(RegValue)
+		}
+		}
+		createLinksToCitys(FullPath) {
+			SplitPath FullPath,,,, FileNameNoExt
+			NameCity:=RegExReplace(FileNameNoExt, "i)^Data_")
+			if A_IsCompiled
+				FileCreateShortcut, "%A_ScriptFullPath%", %A_Desktop%\%NameCity%.lnk, "%A_ScriptDir%", "%FullPath%"
+			else
+				FileCreateShortcut, "%A_AHKPath%", %A_Desktop%\%NameCity%.lnk, "%A_ScriptDir%", "%A_ScriptFullPath%" "%FullPath%",, %A_ScriptDir%\2gisLaunch.ico
+		}
+	makeAssociation() {
+		RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", ".dgdat", , "2gisLaunch")
+		if A_IsCompiled {
+			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\shell\open\command", , """" . A_ScriptFullPath . """ ""%1""")
+			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\DefaultIcon", , """" .  A_ScriptFullPath . """, 0")
+		} else {
+			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\shell\open\command", , """" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1""")
+			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\DefaultIcon", , """" . A_ScriptDir . "\2gisLaunch.ico""")
+		}
+	}
 
 	SetHookShellProc() {
 		DllCall("RegisterShellHookWindow", "UInt", A_ScriptHwnd) ; должен быть установлен до активации окна, если 2гис уже запущен
@@ -803,9 +854,10 @@ Return
 		iGisActiv:=0
 		}
 
+
 	ShellProc(nCode)  {
 		Critical
-			if ((nCode = 1) || (nCode = 2)) { ;|| (nCode = 4) || (nCode = 32772)) {
+			if ((nCode = 1) || (nCode = 2)) {
 				cls(nCode)
 			} else if ((nCode = 4) || (nCode = 32772))
 				checkActiveWin()
@@ -814,15 +866,6 @@ Return
 			; 	checkPreferenceWin(nCode)
 		}
 
-		checkPreferenceWin(nCode) {
-			SetTimer, CheckPreferenceWinExist, -50
-			Return
-
-			CheckPreferenceWinExist:
-			IfWinExist, Общие настройки ahk_class #32770
-				sleep 0 ; msg("Pre")
-			Return
-		}
 		cls(nCode) {
 			DetectHiddenWindows, on
 			SetWinDelay, 0
@@ -882,11 +925,11 @@ Return
 	; Get mouse button state to var: LButtonState, RButtonState, MButtonState; Get mouse pos to var: x, y
 	; Call f: ShowToolBarByMouse, LKM, RKM, MKM
 	LowLevelMouseProc(nCode, wParam, lParam) {
-		static x, y, LButtonState:=0, RButtonState:=0
-			If (wParam = 0x200)  ; 0x200: "WM_MOUSEMOVE",  0x204: "WM_RBUTTONDOWN", 0x205: "WM_RBUTTONUP", 0x207: WM_RBUTTONDOWN, 208
-			{
-					x := NumGet(lParam + 0, "Int"), y := NumGet(lParam + 4, "Int")
-			} else if (wParam = 0x201) {
+		static x, y
+		If (wParam = 0x200)  ; 0x200: "WM_MOUSEMOVE",  0x204: "WM_RBUTTONDOWN", 0x205: "WM_RBUTTONUP", 0x207: WM_RBUTTONDOWN, 208
+		{
+			x := NumGet(lParam + 0, "Int"), y := NumGet(lParam + 4, "Int")
+		} else if (wParam = 0x201) {
 			LButtonState:=1
 		} else if (wParam = 0x202) {
 			LButtonState:=0
@@ -1101,7 +1144,7 @@ Return
 		
 		ShowToolBarByMouse(ByRef iToolbarByMouse, xMW, yMW, heightAboveMap, XTPDockBar, iShowDockBar, LButtonState, RButtonState) {
 			Static iShowToolByMouseBusy=0, issleep
-			; msg(xMW " " yMW " " gisState)
+			; ToolTip % "iShowToolByMouseBusy = " iShowToolByMouseBusy ", iShowDockBar = " iShowDockBar ", !gisState = " !gisState ", LButtonState = " LButtonState "`nyMW = " yMW ", iToolbarByMouse = " iToolbarByMouse
 			if !fAutoShowToolBarByMouse || iShowToolByMouseBusy || iShowDockBar || !gisState || LButtonState || RButtonState
 				Return
 			iShowToolByMouseBusy:=1
@@ -1110,9 +1153,9 @@ Return
 			{
 				Critical
 				Sleep 100
-				; CoordMode Mouse, Screen
-				MouseGetPos,xMW,yMW
-				; msg(xMW " " yMW)
+				CoordMode, Mouse, Screen
+				MouseGetPos,,yMW
+				; ToolTip, % yMW " " gisState " " iToolbarByMouse
 				if ((yMW<=9) && gisState && (iToolbarByMouse=0))
 				{
 					Control, Show,,, AHK_id %XTPDockBar%
@@ -1196,16 +1239,11 @@ Return
 				ControlSend,, %Char%, AHK_id %Text4% ; "активирует" контрол, можно было посылать любой символ
 				Send %Char%
 				Sleep 100
-				; WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
-				; ControlMove, AHK_class XTPPopupBar,,, WidthGis+20,,, AHK_id %gisID%
-				; ControlFocus,, AHK_id %Text4%
-				; Control, EditPaste, % Char,, AHK_id %Text4% ; помещаемое становится выделенным, поэтому затирается следующим вводом
-				; ControlSetText,, %Char%, AHK_id %Text4% ; не заработало
 			}
 			itypeInControlBusy:=0
 			}
 
-	RunAsTask() {                         ;  By SKAN,  http://goo.gl/yG6A1F,  CD:19/Aug/2014 | MD:22/Aug/2014 
+	RunAsTask() { ;  By SKAN,  http://goo.gl/yG6A1F,  CD:19/Aug/2014 | MD:22/Aug/2014 
 		Local CmdLine, TaskName, TaskExists, XML, TaskSchd, TaskRoot, RunAsTask
 		Local TASK_CREATE := 0x2,  TASK_LOGON_INTERACTIVE_TOKEN := 3 
 
@@ -1214,8 +1252,8 @@ Return
 		Catch
 				Return "", ErrorLevel := 1    
 
-		CmdLine       := ( A_IsCompiled ? "" : """"  A_AhkPath """" )  A_Space  ( """" A_ScriptFullpath """"  )
-		TaskName      := "[RunAsTask] " A_ScriptName " @" SubStr( "000000000"  DllCall( "NTDLL\RtlComputeCrc32"
+		CmdLine  := ( A_IsCompiled ? "" : """"  A_AhkPath """" )  A_Space  ( """" A_ScriptFullpath """"  )
+		TaskName := "[RunAsTask] " A_ScriptName " @" SubStr( "000000000"  DllCall( "NTDLL\RtlComputeCrc32"
 										 , "Int",0, "WStr",CmdLine, "UInt",StrLen( CmdLine ) * 2, "UInt" ), -9 )
 
 		Try RunAsTask := TaskRoot.GetTask( TaskName )
@@ -1229,7 +1267,7 @@ Return
 			Run *RunAs %CmdLine%, %A_ScriptDir%, UseErrorLevel
 			ExitApp
 		}
-		If ( A_IsAdmin and not TaskExists )      {
+		If ( A_IsAdmin and not TaskExists ) {
 			XML := "
 			( LTrim Join
 				<?xml version=""1.0"" ?><Task xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task""><Regi
@@ -1246,11 +1284,294 @@ Return
 				<Command>"   (  A_IsCompiled ? A_ScriptFullpath : A_AhkPath )       "</Command>
 				<Arguments>" ( !A_IsCompiled ? """" A_ScriptFullpath  """" : "" )   "</Arguments>
 				<WorkingDirectory>" A_ScriptDir "</WorkingDirectory></Exec></Actions></Task>
-			)"    
-	 
+			)"
+
 			TaskRoot.RegisterTask( TaskName, XML, TASK_CREATE, "", "", TASK_LOGON_INTERACTIVE_TOKEN )
 		}
 
 		Return TaskName, ErrorLevel := 0
+	}
+	TrayIcon_GetInfo(sExeName:="") { ; by Sean (http://goo.gl/dh0xIX) & Cyruz (http://ciroprincipe.info)
+		d := A_DetectHiddenWindows
+		DetectHiddenWindows, On   
+
+		oTrayInfo := Object()
+		For key, sTrayP in ["Shell_TrayWnd", "NotifyIconOverflowWindow"]
+		{
+			idxTB := TrayIcon_GetTrayBar()
+			WinGet, pidTaskbar, PID, ahk_class %sTrayP%
+
+			hProc := DllCall( "OpenProcess",    UInt,0x38, Int,0, UInt,pidTaskbar                       )
+			pRB   := DllCall( "VirtualAllocEx", Ptr,hProc, Ptr,0, UInt,20,        UInt,0x1000, UInt,0x4 )
+
+			szBtn := VarSetCapacity( btn, (A_Is64bitOS) ? 32 : 24, 0 )
+			szNfo := VarSetCapacity( nfo, (A_Is64bitOS) ? 32 : 24, 0 )
+			szTip := VarSetCapacity( tip, 128 * 2,                 0 )
+
+			SendMessage, 0x418, 0, 0, ToolbarWindow32%idxTB%, ahk_class %sTrayP% ; TB_BUTTONCOUNT
+			Loop, %ErrorLevel%
+			{
+				SendMessage, 0x417, A_Index - 1, pRB, ToolbarWindow32%idxTB%, ahk_class %sTrayP% ; TB_GETBUTTON
+
+				DllCall( "ReadProcessMemory", Ptr,hProc, Ptr,pRB, Ptr,&btn, UInt,szBtn, UInt,0 )
+
+				iBitmap := NumGet( btn, 0                       )
+				idCmd   := NumGet( btn, 4                       )
+				Statyle := NumGet( btn, 8                       )
+				dwData  := NumGet( btn, (A_Is64bitOS) ? 16 : 12 )
+				iString := NumGet( btn, (A_Is64bitOS) ? 24 : 16 )
+
+				DllCall( "ReadProcessMemory", Ptr,hProc, Ptr,dwData, Ptr,&nfo, UInt,szNfo, UInt,0 )
+
+				hWnd  := NumGet( nfo, 0                       )
+				uID   := NumGet( nfo, (A_Is64bitOS) ? 8  : 4  )
+				nMsg  := NumGet( nfo, (A_Is64bitOS) ? 12 : 8  )
+				hIcon := NumGet( nfo, (A_Is64bitOS) ? 24 : 20 )
+
+				WinGet,      pid,      PID,         ahk_id %hWnd%
+				WinGet,      sProcess, ProcessName, ahk_id %hWnd%
+				WinGetClass, sClass,                ahk_id %hWnd%
+
+				If ( !sExeName || (sExeName == sProcess) || (sExeName == pid) )
+				    DllCall( "ReadProcessMemory", Ptr,hProc, Ptr,iString, Ptr,&tip, UInt,szTip, UInt,0 )
+				  , oTrayInfo.Insert({ "idx": A_Index-1, "idcmd": idCmd, "pid": pid, "uid": uID, "msgid": nMsg
+				                     , "hicon": hIcon, "hwnd": hWnd, "class": sClass, "process": sProcess
+				                     , "tooltip": StrGet(&tip, "UTF-16"), "place": sTrayP })
+			}
+
+			DllCall( "VirtualFreeEx", Ptr,hProc, Ptr,pRB, UInt,0, UInt,0x8000 )
+			DllCall( "CloseHandle",   Ptr,hProc                               )
+		}
+		DetectHiddenWindows, %d%
+		Return oTrayInfo
+		}
+		TrayIcon_GetTrayBar() {
+		d := A_DetectHiddenWindows
+		DetectHiddenWindows, On
+		WinGet, ControlList, ControlList, ahk_class Shell_TrayWnd
+		RegExMatch(ControlList, "(?<=ToolbarWindow32)\d+(?!.*ToolbarWindow32)", nTB)
+
+		Loop, %nTB%
+		{
+			ControlGet, hWnd, hWnd,, ToolbarWindow32%A_Index%, ahk_class Shell_TrayWnd
+			hParent := DllCall( "GetParent", Ptr,hWnd )
+			WinGetClass, sClass, ahk_id %hParent%
+			If (sClass <> "SysPager")
+				Continue
+			idxTB := A_Index
+				Break
+		}
+
+		DetectHiddenWindows, %d%
+		Return  idxTB
+	}
+	GuiButtonIcon(Handle, File, Index := 1, Options := "") {
+		RegExMatch(Options, "i)w\K\d+", W), (W="") ? W := 16 :
+		RegExMatch(Options, "i)h\K\d+", H), (H="") ? H := 16 :
+		RegExMatch(Options, "i)s\K\d+", S), S ? W := H := S :
+		RegExMatch(Options, "i)l\K\d+", L), (L="") ? L := 0 :
+		RegExMatch(Options, "i)t\K\d+", T), (T="") ? T := 0 :
+		RegExMatch(Options, "i)r\K\d+", R), (R="") ? R := 0 :
+		RegExMatch(Options, "i)b\K\d+", B), (B="") ? B := 0 :
+		RegExMatch(Options, "i)a\K\d+", A), (A="") ? A := 4 :
+		Psz := A_PtrSize = "" ? 4 : A_PtrSize, DW := "UInt", Ptr := A_PtrSize = "" ? DW : "Ptr"
+		VarSetCapacity( button_il, 20 + Psz, 0 )
+		NumPut( normal_il := DllCall( "ImageList_Create", DW, W, DW, H, DW, 0x21, DW, 1, DW, 1 ), button_il, 0, Ptr )	; Width & Height
+		NumPut( L, button_il, 0 + Psz, DW )		; Left Margin
+		NumPut( T, button_il, 4 + Psz, DW )		; Top Margin
+		NumPut( R, button_il, 8 + Psz, DW )		; Right Margin
+		NumPut( B, button_il, 12 + Psz, DW )	; Bottom Margin	
+		NumPut( A, button_il, 16 + Psz, DW )	; Alignment
+		SendMessage, BCM_SETIMAGELIST := 5634, 0, &button_il,, AHK_ID %Handle%
+		return IL_Add( normal_il, File, Index )
+	}
+
+	AutoUpdate(FILE, mode:=0, updateIntervalDays:=7, CHANGELOG:="", iniFile:="", backupNumber:=1) {
+		iniFile := iniFile ? iniFile : GetNameNoExt(A_ScriptName) . ".ini"
+		VERSION_FromScript_REGEX := "Oi)(?:^|\R);\s*ver\w*\s*=?\s*(\d+(?:\.\d+)?)(?:$|\R)"
+		currVer := GetCurrentVer(iniFile)
+		if NeedToCheckUpdate(mode, updateIntervalDays, iniFile) {
+			if (CHANGELOG!="") {
+				if Not (currVer := GetCurrentVer(iniFile))
+					currVer := GetCurrentVerFromScript(VERSION_FromScript_REGEX)
+				changelogContent := DownloadChangelog(CHANGELOG)
+				If changelogContent {
+					if (lastVer := GetLastVer(CHANGELOG, changelogContent)) {
+						LastVerNews := GetLastVerNews(CHANGELOG, changelogContent)
+						WriteLastCheckTime(iniFile)
+						if Not (lastVer > currVer)
+							Return
+					}
+				} else {
+					if ((ErrorLevel != "") && (Manually := mode & 1)) {
+						MsgBox 48,, %ErrorLevel%, 5
+						Return
+					}
+				}
+			}
+			
+			Update(FILE, mode, backupNumber, iniFile, currVer, lastVer, LastVerNews)
+		}
+	}
+	NeedToCheckUpdate(mode, updateIntervalDays, iniFile) {
+		if ((NotAuto := mode & 2) And Not (Manually := mode & 1)) {
+			NeedToCheckUpdate := False
+		} else if (A_Now > GetTimeToUpdate(updateIntervalDays, iniFile)) || (manually := mode & 1) {
+			NeedToCheckUpdate := True
+		}
+		OutputDebug % "NeedToCheckUpdate: " (NeedToCheckUpdate ? "Yes" : "No")
+		Return NeedToCheckUpdate
+	}
+	Update(FILE, mode, backupNumber, iniFile, currVer, lastVer, LastVerNews:="") {
+		silentUpdate := ! ((mode & 4) || (mode & 1))
+		if silentUpdate {
+			OutputDebug % DownloadAndReplace(FILE, backupNumber, iniFile, lastVer, currVer)
+			if (mode & 8)
+				Reload
+		} else {
+			MsgBox, 36, %A_ScriptName% %currVer%, New version %lastVer% available.`n%LastVerNews%`nDownload it now? ; [Yes] [No]  [x][Don't check update]
+			IfMsgBox Yes
+			{
+				if (Err := DownloadAndReplace(FILE, backupNumber, iniFile, lastVer, currVer)) {
+					if ((Err != "") && (Err != "No access to the Internet"))
+						MsgBox 48,, %Err%, 5
+				} else {
+					if (mode & 8)
+						Reload
+					else if ((mode & 16) || (mode & 1)) {
+						MsgBox, 36, %A_ScriptName%, Script updated.`nRestart it now?
+						IfMsgBox Yes
+						{
+							Reload ; no CL parameters!
+						}
+					}
+				}
+			}
+		}
+	}
+	DownloadAndReplace(FILE, backupNumber, iniFile, lastVer, currVer) {
+		; Download File from Net and replace origin
+		; Return "" if update success Or return Error, if not
+		; Write CurrentVersion to ini
+		currFile := FileOpen(A_ScriptFullPath, "r").Read()
+		if A_LastError
+			Return "FileOpen Error: " A_LastError
+		lastFile := UrlDownloadToVar(FILE)
+		if ErrorLevel
+			Return ErrorLevel
+		OutputDebug DownloadAndReplace: File download
+		if (RegExReplace(currFile, "\R", "`n") = RegExReplace(lastFile, "\R", "`n")) {
+			WriteCurrentVersion(lastVer, iniFile)
+			Return "Last version the same file"
+		} else {
+			backupName := A_ScriptFullPath ".v" currVer ".backup"
+			FileCopy %A_ScriptFullPath%, %backupName%, 1
+			if ErrorLevel
+				Return "Error access to " A_ScriptFullPath " : " ErrorLevel
+
+			file := FileOpen(A_ScriptFullPath, "w")
+			if !IsObject(file) {
+				MsgBox Can't open "%A_ScriptFullPath%" for writing.
+				return
+			}
+			file.Write(lastFile)
+			file.Close()
+
+			; FileAppend %lastFile%, %A_ScriptFullPath%
+			if ErrorLevel
+				Return "Error create new " A_ScriptFullPath " : " ErrorLevel
+		}
+		WriteCurrentVersion(lastVer, iniFile)
+		OutputDebug DownloadAndReplace: File update
+	}
+	GetTimeToUpdate(updateIntervalDays, iniFile) {
+		timeToUpdate := GetLastCheckTime(iniFile)
+		timeToUpdate += %updateIntervalDays%, days
+		OutputDebug GetTimeToUpdate %timeToUpdate%
+		Return timeToUpdate
+	}
+	GetLastCheckTime(iniFile) {
+		IniRead lastCheckTime, %iniFile%, update, last check, 0
+		OutputDebug LastCheckTime %lastCheckTime%
+		Return lastCheckTime
+	}
+	WriteLastCheckTime(iniFile) {
+		IniWrite, %A_Now%, %iniFile%, update, last check
+		OutputDebug WriteLastCheckTime
+		If ErrorLevel
+			Return 1
+	}
+	WriteCurrentVersion(lastVer, iniFile) {
+		OutputDebug WriteCurrentVersion %lastVer% to %iniFile%
+		IniWrite %lastVer%, %iniFile%, update, current version
+		If ErrorLevel
+			Return 1
+	}
+	GetCurrentVer(iniFile) {
+		IniRead currVer, %iniFile%, update, current version, 0
+		OutputDebug, GetCurrentVer() = %currVer% from %iniFile%
+		Return currVer
+	}
+	GetCurrentVerFromScript(Regex) {
+		FileRead, ScriptText, % A_ScriptFullPath
+		RegExMatch(ScriptText, Regex, currVerObj)
+		currVer := currVerObj.1
+		OutputDebug, GetCurrentVerFromScript() = %currVer% from %A_ScriptFullPath%
+		Return currVer
+	}
+	GetLastVer(CHANGELOG, changelogContent) {
+		If IsObject(CHANGELOG) {
+			Regex := CHANGELOG[2]
+			RegExMatch(changelogContent, Regex, changelogContentObj)
+			lastVer := changelogContentObj.0
+		} else
+			lastVer := changelogContent
+
+		OutputDebug, GetLastVer() = %lastVer%`, Regex = %Regex% 
+		Return lastVer
+	}
+	GetLastVerNews(CHANGELOG, changelogContent) {
+		If IsObject(CHANGELOG) {
+			if (WhatNew_REGEX := CHANGELOG[3]) {
+				RegExMatch(changelogContent, WhatNew_REGEX, WhatNewO)
+				WhatNew := WhatNewO.1
+			}
+		}
+		Return WhatNew
+	}
+	DownloadChangelog(CHANGELOG) {
+		If IsObject(CHANGELOG)
+			URL := CHANGELOG[1]
+		else
+			URL := CHANGELOG
+
+		If changelogContent := UrlDownloadToVar(URL)
+			Return changelogContent
+	}
+	UrlDownloadToVar(URL) {
+		WebRequest := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		try WebRequest.Open("GET", URL, true)
+		catch	Error {
+			ErrorLevel := "Wrong URL"
+			return false
+			}
+		WebRequest.Send()
+		try WebRequest.WaitForResponse()
+		catch	Error {
+			ErrorLevel := "No access to the Internet"
+			return false
+			}
+		HTTPStatusCode := WebRequest.status
+		if (SubStr(HTTPStatusCode, 1, 1) ~= "4|5") { ; 4xx — Client Error, 5xx — Server Error. wikipedia.org/wiki/List_of_HTTP_status_codes
+			ErrorLevel := "HTTPStatusCode: " HTTPStatusCode
+			return false
+			}
+		OutputDebug UrlDownloadToVar() HTTPStatusCode = %HTTPStatusCode% 
+		ans:=WebRequest.ResponseText
+		return ans
+	}
+	GetNameNoExt(FileName) {
+		SplitPath FileName,,, Extension, NameNoExt
+		Return NameNoExt
 	}
 }
