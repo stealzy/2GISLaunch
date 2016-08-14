@@ -45,7 +45,7 @@ if %0%>0
 		MsgBox Unknown ComLine Parametr!`n:%comkey%:  :%Summ%:
 }
 { ; переменные
-	Global gisClass:="^Afx:\d{8}:\S+", heightAboveMap:=57, SideBarPlusWinBorderWidth:=330, HideLayerButton:=-8
+	Global gisClass:="^Afx:\d{8}:\S+", heightAboveMap:=57, SideBarPlusWinBorderWidth:=338, HideLayerButton:=-18
 	;2gisTitle:="^[^(]+\(\S+ 201\d\) - 2(ГИС|GIS)$"
 	Global ClMapViewParent, MapViewParentID, ClText, ClTextListView, ClText3, ClText4, ClText7, ClText8
 	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar
@@ -676,7 +676,7 @@ Return
 		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease %vers% ;x+270 y+20
 		Gui, Preference: Add, Link,, Home page on <a href="https://github.com/stealzy/2GISLaunch">GitHub</a>.
 		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>.
-		Gui, Preference: Add, Link,, RunAsDate from <a href="http://www.nirsoft.net/utils/run_as_date.html">NirSoft</a>.
+		Gui, Preference: Add, Link,, Use RunAsDate from <a href="http://www.nirsoft.net/utils/run_as_date.html">NirSoft</a>.
 		Gui, Preference: Add, Button, gcheckUpdate h21 y+15, Проверить обновления
 		Gui, Preference: Tab, 2
 		Gui, Preference: Add, Text,, `tГорячие клавиши:
@@ -1083,8 +1083,17 @@ Return
 				WinGetClass, controlClass_UnderMouse, AHK_id %winID_UnderMouse%
 				if (controlClass_UnderMouse=ClTextListView)
 					ClickEvent:="ListView"
-				else if (controlClassNN_UnderMouse="Grym_MapView1" or controlClassNN_UnderMouse=ClMapViewParent) ;Map & parentWindForMap
+				else if (controlClassNN_UnderMouse="Grym_MapView1" or controlClassNN_UnderMouse=(ClMapViewParent . "1")) ;Map & parentWindForMap
 					ClickEvent:="Map"
+
+				if (ClickEvent="Map") {
+					MouseGetPos xm, ym
+					; x1:=xm-10
+					PixelSearch, ,, xm-10, ym-10, xm+10, ym+10, 0xCC6600, 16, Fast
+					if !ErrorLevel
+						SideBar_show()
+				}
+
 				if (gisState=1) {					 ;если окно максим.
 					if (x>=A_ScreenWidth-25)&&(y<=25)
 						ClickEvent:="Close"
@@ -1263,54 +1272,6 @@ Return
 			itypeInControlBusy:=0
 			}
 
-	RunAsTask() { ;  By SKAN,  http://goo.gl/yG6A1F,  CD:19/Aug/2014 | MD:22/Aug/2014 
-		Local CmdLine, TaskName, TaskExists, XML, TaskSchd, TaskRoot, RunAsTask
-		Local TASK_CREATE := 0x2,  TASK_LOGON_INTERACTIVE_TOKEN := 3 
-
-		Try TaskSchd  := ComObjCreate( "Schedule.Service" ),    TaskSchd.Connect()
-			, TaskRoot  := TaskSchd.GetFolder( "\" )
-		Catch
-				Return "", ErrorLevel := 1    
-
-		CmdLine  := ( A_IsCompiled ? "" : """"  A_AhkPath """" )  A_Space  ( """" A_ScriptFullpath """"  )
-		TaskName := "[RunAsTask] " A_ScriptName " @" SubStr( "000000000"  DllCall( "NTDLL\RtlComputeCrc32"
-										 , "Int",0, "WStr",CmdLine, "UInt",StrLen( CmdLine ) * 2, "UInt" ), -9 )
-
-		Try RunAsTask := TaskRoot.GetTask( TaskName )
-		TaskExists    := ! A_LastError
-
-		If ( not A_IsAdmin and TaskExists ) {
-			RunAsTask.Run( "" )
-			ExitApp
-		}
-		If ( not A_IsAdmin and not TaskExists )  {
-			Run *RunAs %CmdLine%, %A_ScriptDir%, UseErrorLevel
-			ExitApp
-		}
-		If ( A_IsAdmin and not TaskExists ) {
-			XML := "
-			( LTrim Join
-				<?xml version=""1.0"" ?><Task xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task""><Regi
-				strationInfo /><Triggers /><Principals><Principal id=""Author""><LogonType>InteractiveToken</LogonT
-				ype><RunLevel>HighestAvailable</RunLevel></Principal></Principals><Settings><MultipleInstancesPolic
-				y>Parallel</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><
-				StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><AllowHardTerminate>false</AllowHardTerminate>
-				<StartWhenAvailable>false</StartWhenAvailable><RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAva
-				ilable><IdleSettings><StopOnIdleEnd>true</StopOnIdleEnd><RestartOnIdle>false</RestartOnIdle></IdleS
-				ettings><AllowStartOnDemand>true</AllowStartOnDemand><Enabled>true</Enabled><Hidden>false</Hidden><
-				RunOnlyIfIdle>false</RunOnlyIfIdle><DisallowStartOnRemoteAppSession>false</DisallowStartOnRemoteApp
-				Session><UseUnifiedSchedulingEngine>false</UseUnifiedSchedulingEngine><WakeToRun>false</WakeToRun><
-				ExecutionTimeLimit>PT0S</ExecutionTimeLimit></Settings><Actions Context=""Author""><Exec>
-				<Command>"   (  A_IsCompiled ? A_ScriptFullpath : A_AhkPath )       "</Command>
-				<Arguments>" ( !A_IsCompiled ? """" A_ScriptFullpath  """" : "" )   "</Arguments>
-				<WorkingDirectory>" A_ScriptDir "</WorkingDirectory></Exec></Actions></Task>
-			)"
-
-			TaskRoot.RegisterTask( TaskName, XML, TASK_CREATE, "", "", TASK_LOGON_INTERACTIVE_TOKEN )
-		}
-
-		Return TaskName, ErrorLevel := 0
-	}
 	TrayIcon_GetInfo(sExeName:="") { ; by Sean (http://goo.gl/dh0xIX) & Cyruz (http://ciroprincipe.info)
 		d := A_DetectHiddenWindows
 		DetectHiddenWindows, On   
@@ -1496,9 +1457,9 @@ Return
 			; }
 			; file.Write(lastFile)
 			; file.Close()
-
 			FileDelete %A_ScriptFullPath%
 			FileAppend %lastFile%, %A_ScriptFullPath%
+
 			if ErrorLevel
 				Return "Error create new " A_ScriptFullPath " : " ErrorLevel
 		}
