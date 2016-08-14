@@ -676,6 +676,7 @@ Return
 		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease %vers% ;x+270 y+20
 		Gui, Preference: Add, Link,, Home page on <a href="https://github.com/stealzy/2GISLaunch">GitHub</a>.
 		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>.
+		Gui, Preference: Add, Link,, RunAsDate from <a href="http://www.nirsoft.net/utils/run_as_date.html">NirSoft</a>.
 		Gui, Preference: Add, Button, gcheckUpdate h21 y+15, Проверить обновления
 		Gui, Preference: Tab, 2
 		Gui, Preference: Add, Text,, `tГорячие клавиши:
@@ -1586,7 +1587,7 @@ Return
 			ErrorLevel := "HTTPStatusCode: " HTTPStatusCode
 			return false
 			}
-		OutputDebug UrlDownloadToVar() HTTPStatusCode = %HTTPStatusCode% 
+		OutputDebug UrlDownloadToVar() HTTPStatusCode = %HTTPStatusCode%
 		; ans:=WebRequest.ResponseText
 
 		ADO := ComObjCreate("adodb.stream")
