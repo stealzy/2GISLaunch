@@ -1488,15 +1488,16 @@ Return
 			if ErrorLevel
 				Return "Error access to " A_ScriptFullPath " : " ErrorLevel
 
-			file := FileOpen(A_ScriptFullPath, "w")
-			if !IsObject(file) {
-				MsgBox Can't open "%A_ScriptFullPath%" for writing.
-				return
-			}
-			file.Write(lastFile)
-			file.Close()
+			; file := FileOpen(A_ScriptFullPath, "w")
+			; if !IsObject(file) {
+			; 	MsgBox Can't open "%A_ScriptFullPath%" for writing.
+			; 	return
+			; }
+			; file.Write(lastFile)
+			; file.Close()
 
-			; FileAppend %lastFile%, %A_ScriptFullPath%
+			FileDelete %A_ScriptFullPath%
+			FileAppend %lastFile%, %A_ScriptFullPath%
 			if ErrorLevel
 				Return "Error create new " A_ScriptFullPath " : " ErrorLevel
 		}
@@ -1586,7 +1587,18 @@ Return
 			return false
 			}
 		OutputDebug UrlDownloadToVar() HTTPStatusCode = %HTTPStatusCode% 
-		ans:=WebRequest.ResponseText
+		; ans:=WebRequest.ResponseText
+
+		ADO := ComObjCreate("adodb.stream")
+		ADO.Type := 1
+		ADO.Mode := 3
+		ADO.Open()
+		ADO.Write(WebRequest.ResponseBody())
+		ADO.Position := 0
+		ADO.Type := 2
+		ADO.Charset := "utf-8"
+		ans := ADO.ReadText()
+
 		return ans
 	}
 	GetNameNoExt(FileName) {
