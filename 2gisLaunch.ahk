@@ -1,4 +1,4 @@
-﻿; ver 2.0
+﻿; ver 2.1
 #NoEnv
 #MaxHotkeysPerInterval 250
 #WinActivateForce
@@ -12,14 +12,12 @@ if A_Is64bitOS
 CoordMode, ToolTip, Client
 CoordMode, Pixel, Client
 SendMode Input
-
+OnExit, Exit
 menu, tray, NoStandard
 Menu, tray, add, Выход, Exit
 Menu, tray, add, Настройки, lPrefer
 if (!A_IsCompiled && FileExist(A_ScriptDir "\2gisLaunch.ico"))
 	Menu, Tray, Icon, %A_ScriptDir%\2gisLaunch.ico
-
-OnExit, Exit
 
 if %0%>0
 { ; command line extraction
@@ -50,7 +48,7 @@ if %0%>0
 	Global ClMapViewParent, MapViewParentID, ClText, ClTextListView, ClText3, ClText4, ClText7, ClText8
 	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar
 	Global iniPath, grymDir, PreferenceGuiHwnd, fRestart, fRestartAdmin, hHookKeybd, hHookMouse, titleName, ExitCode:=0
-	Global fShowSideBar, iShowDockBar, fAutoHideLineAndCompas, fAutoShowToolBarByMouse, fDisableTimeRestrictions, fFirstRun, ShowF1tip
+	Global fShowSideBar, iShowDockBar, fAutoHideLineAndCompas, fAutoShowToolBarByMouse, fDisableTimeRestrictions, fFirstRun, ShowF1tip, showTrayIcon
 	Global gisState, iGisActiv=0, iShowLineKompas, iShowInstruments, fSideBarRight, iToolbarByMouse=0
 	Global LButtonState:=0, RButtonState:=0
 	Global fautoCheck, fautoDownload, FILE_URL, CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX
@@ -67,8 +65,9 @@ if %0%>0
 		IniRead, fAutoShowToolBarByMouse, % iniPath, preference, AutoShow ToolBar, 1
 		IniRead, fDisableTimeRestrictions, % iniPath, preference, Bypass Time Restrictions, 0
 		IniRead, ShowF1tip, % iniPath, preference, Show F1 tip, 1
-		IniRead, fautoCheck, % iniPath, update, auto check, 1
-		IniRead, fautoDownload, % iniPath, update, auto download, 1
+		IniRead, showTrayIcon, % iniPath, preference, Show TrayIcon, 1
+		IniRead, fautoCheck, % iniPath, update, Auto check, 1
+		IniRead, fautoDownload, % iniPath, update, Auto download, 1
 	}
 
 	FILE_URL := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/2gisLaunch.ahk"
@@ -76,8 +75,11 @@ if %0%>0
 	CHANGELOG_URL := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/CHANGELOG.md"
 	VERSION_REGEX := "Oi)\R(\d+\.?\d+)\R"
 	WhatNew_REGEX := "Ois)(?<=----)\R(.*?)(\R\R|$)"
-
 }
+
+If Not showTrayIcon
+	Menu, Tray, NoIcon
+
 { ; run/activate
 	If A_IsAdmin ; Association *.dgdat files with launcher
 		makeAssociation()
@@ -123,6 +125,7 @@ if %0%>0
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "ShowRubricatorOnStartup", 0) ; не показывать рубрикатор на старте
+		RegReadWrite("REG_SZ", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "UILanguage", "ru") ; русский язык для скрытия сплеш-окон по заголовку
 		If fDisableTimeRestrictions {
 			; Предотвращаем запуск 2GISTrayNotifier.exe
 			RegReadWrite("REG_SZ", "HKEY_CURRENT_USER", "Software\DoubleGIS\GrymUpdate\Settings", "auto_check", "false")
@@ -154,7 +157,7 @@ if %0%>0
 	iShowInstruments:=!iShowInstruments
 }
 
-GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запуск программы невозможен.
+GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запуск программы невозможен. ;2GIS
 
 { ; находим главное окно и его контролы, прячем рекламу, восст. состояние при предыдущем запуске
 	{ ; находим главное окно и его контролы
@@ -169,15 +172,10 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 	ControlGet, MapView, 		Hwnd,, Grym_MapView1
 
 	ControlGetPos, MapViewX, MapViewY, MapViewWidth, MapViewHeight,, AHK_id %MapView%
-	; msg(x . " " . y . " " . Width . " " . Height)
-	; gisClientAr:=WinGetI("Client, AHK_id" . gisID)
-	; gisClientWidth:=gisClientAr[3]
-	; SideBarWidth:=gisClientWidth-MapViewWidth
 	WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
 	WinGetTitle, titleName, AHK_id %gisID%
 	if !alreadyexist
 		SideBarPlusWinBorderWidth := (WidthGis-MapViewWidth > 350) ? SideBarPlusWinBorderWidth : (WidthGis-MapViewWidth)
-	; msg(SideBarWidth . " " . SideBarWidth_,5,1)
 
 	ControlGet, XTPDockBar, 	Hwnd,, XTPDockBar1
 
@@ -349,7 +347,6 @@ Return
 			SetWinDelay, 0
 			WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
 			WinMove, AHK_id %gisID%,,,, WidthGis+1, HeightGis+1
-			; WinMove, AHK_id %gisID%,,,, WidthGis-1, HeightGis-1
 			SetWinDelay, 10
 		}
 		RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
@@ -437,7 +434,6 @@ Return
 			ControlGetPos,xmap,ymap,wmap,hmap,,AHK_id %MapView%
 			xMapCentr:=(wmap<wg)*(xmap+wmap/2)+(wmap>=wg)*(xmap+(wg-xmap)/2)
 			yMapCentr:=(hmap<hg)*(ymap+hmap/2)+(hmap>=hg)*(ymap+(hg-ymap)/2)
-			;MouseGetPos xsave, ysave
 			MouseMove, xMapCentr, yMapCentr, 0
 		}
 		clickk:
@@ -475,11 +471,6 @@ Return
 		WinGet, gisState, MinMax, AHK_id %gisID%
 
 		if ((gisState=1) && (gisStateOld=0)) { ; After Win Maximize
-			; msg("OK")
-			; WinRestore,AHK_id %gisID%
-			; WinMove,AHK_id %gisID%,,DesktopX,DesktopY,DesktopWidth,DesktopHeigh
-			; Control, Hide,,, AHK_id %XTPDockBar%
-			; WinMaximize,AHK_id %gisID%
 			Sleep 100
 			RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
 		} else if ((gisState=0) && (gisStateOld=1)) { ; After Win restore
@@ -523,11 +514,8 @@ Return
 		Gui,msg1Gui: Add, Text,, Перетаскивать окно можно Правой Кнопкой Мыши
 		Gui,msg1Gui: Show, NA x%x% y%y% w400
 		CoordMode pixel, window
-		; PixelGetColor,transcolor,1,1,RGB
 		Gui,msg1Gui: +Lastfound ; Делаем окно GUI "последним найденным" окном.
-		;WinGet, winid, ID
 		Gui,msg1Gui:+E0x20
-		; WinSet,TransColor,%transcolor% 128
 		WinSet,Transparent, 160
 		SetTimer, TipsDestroy, 2000
 		return
@@ -590,23 +578,22 @@ Return
 		return a
 		}
 	checkProcessExist() {
-		; oIcons := {}
-		; oIcons := TrayIcon_GetInfo()
-		; for index, element in oIcons
-		; 	if (element.Process = "grym.exe")
-		; 		MsgBox
+		oIcons := {}
+		oIcons := TrayIcon_GetInfo()
+		for index, element in oIcons
+			if (element.Process = "grym.exe")
+				Return
+
+		SetTitleMatchMode RegEx
+		If WinExist("ahk_class" gisClass)
+			Return
+
 		Process, Exist, grym.exe
-		If (!ErrorLevel) {
-			; VirtualBox - [Process, Exist] sometimes don't work. So check window exist also.
-			SetTitleMatchMode RegEx
-			If !WinExist("ahk_class" gisClass)
-			{
-				; MsgBox,,checkProcessExist(%ErrorLevel%),Процесс %grymPID% не обнаружен,3
-				ExitCode:=2
-				ExitApp, 2
-			}
-			SetTitleMatchMode 1
-		}
+		If (!ErrorLevel)
+			ExitApp, 2
+		Else
+			SetTimer, _close, -5000
+
 		}
 	inisave() {
 		If !FileExist(iniPath)
@@ -615,10 +602,11 @@ Return
 		IniWrite, %iShowDockBar%, % iniPath, start_state, Show DockBar
 		IniWrite, %fAutoHideLineAndCompas%, % iniPath, preference, AutoShow LineAndCompas
 		IniWrite, %fAutoShowToolBarByMouse%, % iniPath, preference, AutoShow ToolBar
-		IniWrite, %ShowF1tip%, % iniPath, preference, Show F1 tip
 		IniWrite, %fDisableTimeRestrictions%, % iniPath, preference, Bypass Time Restrictions
-		IniWrite, %fautoCheck%, % iniPath, update, auto check
-		IniWrite, %fautoDownload%, % iniPath, update, auto download
+		IniWrite, %ShowF1tip%, % iniPath, preference, Show F1 tip
+		IniWrite, %showTrayIcon%, % iniPath, preference, Show TrayIcon
+		IniWrite, %fautoCheck%, % iniPath, update, Auto check
+		IniWrite, %fautoDownload%, % iniPath, update, Auto download
 		}
 	_close() {
 		PostMessage, 0x112, 0xF060,,, AHK_id %gisID% ; 0x112 = WM_SYSCOMMAND, 0xF060 = SC_CLOSE
@@ -652,31 +640,28 @@ Return
 		Gui, darkPrefGui: +Owner +AlwaysOnTop +ToolWindow -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border
 		Gui, darkPrefGui: Color, 333333, FFFFFF
 		Gui, darkPrefGui: +HwnddarkPrefGuiHwnd
-		If (X!="") && (Y!="")
+		If (X!="") && (Y!="") && (WidthGis!="") && (HeightGis!="")
 			Gui, darkPrefGui: Show, NA x%X% y%Y% w%WidthGis% h%HeightGis%
-		; WinSet, TransColor, FFFFFF 64, AHK_id %darkPrefGuiHwnd%
 		WinHide AHK_id %darkPrefGuiHwnd%
 		DetectHiddenWindows, On
 		WinSet, Transparent, 64, AHK_id %darkPrefGuiHwnd%
 		WinShow AHK_id %darkPrefGuiHwnd%
 		DetectHiddenWindows, Off
-		; Gui, darkPrefGui: +E0x20
 		CoordMode, ToolTip, Screen
 		ToolTip, Чтобы начать искать`,`nпросто начните`nнабирать свой запрос`nиз любого места, 250, 14, 7
 		ToolTip, Боковую панель можно увидеть:`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• произведя поиск (второе `nнажатие Enter скроет панель)., A_ScreenWidth-200, 150, 2
 		ToolTip, Полосу заголовка можно увидеть:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана`,`n• включив опцию:`n[x] показать по подведению курсора., A_ScreenWidth/2-200, 7, 4
-		; ToolTip, Линейка`nи`nкомпас`nпоявляются`nпри`nподведении`nкурсора.`n(Выкл. в `nнастройках), 10, 150, 5
 		ToolTip, Клик в углу`nзакроет`nпрограмму, A_ScreenWidth-80, 7, 6
 
-		Gui, Preference: Add, Tab2, w430 h230 -Background, Настройки|Справка|О лаунчере
+		Gui, Preference: Add, Tab2, w430 h250 -Background, Настройки|Справка|О лаунчере
 		Gui, Preference: Tab, 3
 		IfExist, %A_ScriptDir%\2gisLaunch.png
 			Gui, Preference: Add, Picture, y+8 w260 h190, %A_ScriptDir%\2gisLaunch.png
 		vers := GetCurrentVer(GetNameNoExt(A_ScriptName) . ".ini") ? GetCurrentVer(GetNameNoExt(A_ScriptName) . ".ini") : GetCurrentVerFromScript("Oi)(?:^|\R);\s*ver\w*\s*=?\s*(\d+(?:\.\d+)?)(?:$|\R)")
 		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease %vers% ;x+270 y+20
-		Gui, Preference: Add, Link,, Home page on <a href="https://github.com/stealzy/2GISLaunch">GitHub</a>.
-		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>.
-		Gui, Preference: Add, Link,, Use RunAsDate from <a href="http://www.nirsoft.net/utils/run_as_date.html">NirSoft</a>.
+		Gui, Preference: Add, Link,, <a href="https://github.com/stealzy/2GISLaunch">Home page</a> on GitHub
+		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>
+		Gui, Preference: Add, Link,, Use NirSoft <a href="http://www.nirsoft.net/utils/run_as_date.html">RunAsDate</a>
 		Gui, Preference: Add, Button, gcheckUpdate h21 y+15, Проверить обновления
 		Gui, Preference: Tab, 2
 		Gui, Preference: Add, Text,, `tГорячие клавиши:
@@ -685,25 +670,29 @@ Return
 		Gui, Preference: Add, Text,, `tВыбор города из нескольких:
 		Gui, Preference: Add, Text,y+2, Города записаны в файлах Data_*.dgdat, по-умолчанию находятся в:
 		Gui, Preference: Add, Text, y+0 cBlue gOpenPFdir, `%Program Files`%\2gis\3.0
-		Gui, Preference: Add, Link, y+0, Скачать без установочника можно с <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">Linux версией</a>.`n*.dgdat можно открывать напрямую`, установив ассоциацию с лаунчером`,
+		Gui, Preference: Add, Link, y+0, <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">Скачать базы городов и оболочку без установочника (Linux версия)</a>.`n*.dgdat можно открывать напрямую`, установив ассоциацию с лаунчером`,
 		Gui, Preference: Add, Text, y+0 cBlue greadAndCreateLinksToCitys, либо создать ярлыки на рабочий стол.
 		Gui, Preference: Tab, 1
-		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse%, Автоматическое появление  Полосы заголовка `nпри подведении курсора к верх. краю в полноэкранном режиме.
-		Gui, Preference: Add, Checkbox, vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow, Отключить ограничение по времени`n(можно пользоваться больше 3 месяцев без обновления)
-		Gui, Preference: Add, Checkbox, vfAutoHideLineAndCompas Checked%fAutoHideLineAndCompas%, Автоматическое появление  Маштабной линейки и Компаса`nпри подведении курсора к месту их расположения.
-		Gui, Preference: Add, Checkbox, vfautoCheck Checked%fautoCheck% y+10 gUnCheckautoDownload hwndChBoxautoCheck, Автоматическая проверка обновлений
-		Gui, Preference: Add, Checkbox, vfautoDownload Checked%fautoDownload% y+10, Автоматическая загрузка обновлений
+		Gui, Preference: Add, Checkbox, Section vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow x+20 y+10, Отключить временные ограничения
+		Gui, Preference: Add, Checkbox, vshowTrayIcon Checked%showTrayIcon% gToggleIcon, Показывать иконку лаунчера в трее
+
+		Gui, Preference: Add, GroupBox, Section w270 h60 xs-10 y+10, Окно 2GIS. Автоматическое появление:
+		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse% xp+10 yp+18, Полосы заголовка
+		;`nпри подведении курсора к верх. краю в полноэкранном режиме.
+		Gui, Preference: Add, Checkbox, vfAutoHideLineAndCompas Checked%fAutoHideLineAndCompas%, Маштабной линейки и Компаса
+
+		Gui, Preference: Add, GroupBox, w270 h35 xs y+20, Обновления лаунчера. Автоматическая:
+		Gui, Preference: Add, Checkbox, vfautoCheck Checked%fautoCheck% xp+10 yp+16 gUnCheckautoDownload hwndChBoxautoCheck, Проверка
+		Gui, Preference: Add, Checkbox, vfautoDownload Checked%fautoDownload% x+40, Загрузка
 		RegRead, assOpenKey, HKEY_CLASSES_ROOT, 2gisLaunch\shell\open\command
 		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""))) {
-			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h21 w300 y+10, Установить ассоциацию на файлы городов *.dgdat
+			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h22 w270 xs, Ассоциировать с файлами городов *.dgdat
 			GuiButtonIcon(Icon, "imageres.dll", 74, "a0 l2")
 		}
-		; Gui, Preference: Add, Button, gСохранить xm+12 ym+230 w70 h21 , Сохранить
-		Gui, Preference: Add, Button, greadAndCreateLinksToCitys h21 y+10, Создать ярлыки к городам на рабочий стол
+		Gui, Preference: Add, Button, greadAndCreateLinksToCitys xs h22 w270, Создать ярлыки к городам на рабочем столе
 		Gui, Preference: Tab
 		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
 		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+110 yp+3, Показывать при следующем запуске
-		Gui, Preference: Color, B2B9B3, F2F9F3
 		Gui, Preference: -Caption +AlwaysOnTop +ToolWindow -SysMenu
 		Gui, Preference: +HwndPreferenceGuiHwnd
 		Gui, Preference: Show, w455, 2GISLaunch by stealzy ;NoActivate
@@ -733,7 +722,7 @@ Return
 			Return
 		RestartNow:
 			Gui, Preference: Tab
-			Gui, Preference: Add, Button, Default h20 xm+80 ym+236 gRestart, Перезапустить
+			Gui, Preference: Add, Button, Default h20 xm+80 ym+256 gRestart, Перезапустить
 			Return
 		Restart:
 			Gui, Preference: Submit
@@ -764,6 +753,14 @@ Return
 			} else
 				GuiControl, Enable, fautoDownload
 			Return
+		ToggleIcon:
+			Gui, Preference: Submit, NoHide
+			If showTrayIcon {
+				Menu, Tray, Icon
+			} else {
+				Menu, Tray, NoIcon
+			}
+			Return
 		}
 	Exit:
 		Send {Alt Up}{RAlt Up}
@@ -791,6 +788,7 @@ Return
 		prefer()
 		Return
 	CheckPreferenceWinExist:
+		; General settings
 		If WinExist("PrefButtonTitle") {
 			If (!WinExist("Общие настройки ahk_class #32770") || ( !WinActive("AHK_pid" grymPID) && !WinActive("PrefButtonTitle") )) {
 				Gui, PrefButton: Cancel
@@ -798,7 +796,6 @@ Return
 		} Else {
 			If (PrefID:=WinActive("Общие настройки ahk_class #32770")) {
 				Gui, PrefButton: +Owner -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border -ToolWindow AlwaysOnTop
-				; Gui, PrefButton: Color, 0, FFFFFF
 				Gui, PrefButton: Add, Button, glPrefer +Default x-1 y-1 w152 h32 , Настройки 2GISLaunch
 				Gui, PrefButton: +HwndPrefButtonHwnd
 				WinGetPos, XPref, YPref, WidthPref, HeightPref, Общие настройки ahk_class #32770
@@ -975,12 +972,6 @@ Return
 		ShowToolBarByMouse(iToolbarByMouse, x, y, heightAboveMap, XTPDockBar, iShowDockBar, LButtonState, RButtonState)
 		LKM(x, y, LButtonState)
 		RKM(x, y)
-		; if Not (timeLeapse++<(n-1)) {
-			; ElapsedTime := A_TickCount - StartTime
-			; msg("xy: " . x . " " . y . " LB: " . LButtonState . " RB: " . RButtonState . " Time: " . ElapsedTime) ; . "LBold: " . LButtonStateOld)
-			; timeLeapse:=0
-			; StartTime := A_TickCount
-		; }
 		EventHandlingInProcess:=0
 		Return
 		}
@@ -990,27 +981,15 @@ Return
 			if (iAutoHideBusy || LButtonState || iToolbarByMouse || (xMW=""))
 				Return
 			iAutoHideBusy:=1
-			; msg(timeLeapse,1,1)
 			if (timeLeapse++>n) { ; 120ms!
-				; get Map position; combine w xMW, yMW; calc X, Y from Map
 					ControlGetPos, xCW, yCW,,,, AHK_id %MapView%
 					WinGetPos, Xw, Yw,,, ahk_id %gisID%
-			; 	; get pixel; calc iShowLineKompas, iShowInstruments. If Error - 0, 0 => permament toggles if mouse on. Catch hack
-			; 		PixelGetColor, color1, 23, 52+yCW
-			; 		PixelGetColor, color2, 23, 101+yCW
-			; 		PixelGetColor, color3, 23, 151+yCW
-			; 		PixelGetColor, color4, 23, 202+yCW
-			; 		PixelGetColor, color5, 86, 27+yCW
-			; 		iShowLineKompas:= (((color1=0x808080) + (color2=0x808080) + ((color1=0x808080) || (color4=0x808080)))>=2) ;? 1 : 0
-			; 		iShowInstruments:=(color5=0x6f6f6f)
-			; 	; msg(iShowLineKompas . " " . iShowInstruments,3,1)
 				timeLeapse:=0
 			}
 			x:=xMW-Xw-xCW ;xMC
 			y:=yMW-Yw-yCW ;yMC
 
 			calc:
-			; combine (X, Y from Map; iShowLineKompas, iShowInstruments); calc Events
 				if (!iShowLineKompas && (x!=""))
 				{ ;область, в которой появляется линейка появляется меньше, чем...
 					if ((x>9)&&(x<90)&&(y>(15+55*iShowInstruments))&&(y<(300+55*iShowInstruments)))
@@ -1023,13 +1002,10 @@ Return
 					if ((x>0) and (x<130) and (y>55*iShowInstruments) and (y<(330+55*iShowInstruments))) { ; 
 						S:=0
 					} else {
-						; msgbox % "x=" x " [0:130] && y=" y " [0:330]"
 						S:=1
 					}
 				}
 
-			; toggle if Events
-				; msg("S: " S " x: " x " y: " y " xw:" xMW " yw:" yMW " Sc: " iShowLineKompas " Tools:" iShowInstruments)
 				If S
 				{
 					iShowLineKompas:=!iShowLineKompas
@@ -1076,7 +1052,6 @@ Return
 			if iLKMbusy
 				Return
 			iLKMbusy:=1
-			; msg("xy: " . x . " " . y . " LB: " . LButtonState . " RB: " . RButtonState . " LBold: " . LButtonStateOld . " gisState: " . gisState . " gisID: " . gisID)
 			if (LButtonState and !LButtonStateOld) { ;нажатие пкм
 				xDown:=x, yDown=y					 ;сохраняем координаты нажатия
 				MouseGetPos,,, winID_UnderMouse, controlClassNN_UnderMouse ;определяем контрол, на кот.нажали
@@ -1085,14 +1060,6 @@ Return
 					ClickEvent:="ListView"
 				else if (controlClassNN_UnderMouse="Grym_MapView1" or controlClassNN_UnderMouse=(ClMapViewParent . "1")) ;Map & parentWindForMap
 					ClickEvent:="Map"
-
-				if (ClickEvent="Map") {
-					MouseGetPos xm, ym
-					; x1:=xm-10
-					PixelSearch, ,, xm-10, ym-10, xm+10, ym+10, 0xCC6600, 16, Fast
-					if !ErrorLevel
-						SideBar_show()
-				}
 
 				if (gisState=1) {					 ;если окно максим.
 					if (x>=A_ScreenWidth-25)&&(y<=25)
@@ -1126,8 +1093,16 @@ Return
 						ToolTip, Восстановить окно можно:`n• потянув вниз за полосу заголовка`;`n• нажав ALT+ENTER`,`n• кликнув колесом мыши.
 						SetTimer, RemoveToolTip, 3000
 					}
-					ClickEvent:=0
 				}
+
+				if (ClickEvent="Map" && (GetCursorInfo() = (CURSOR_HAND := 65567))) {
+					MouseGetPos xm, ym
+					PixelSearch, ,, xm-10, ym-10, xm+10, ym+10, 0xCC6600, 16, Fast ; search blue link color in area square
+					if !ErrorLevel
+						SideBar_show()
+				}
+				
+				ClickEvent:=0
 			}
 			LButtonStateOld:=LButtonState
 			iLKMbusy:=0
@@ -1173,7 +1148,6 @@ Return
 		
 		ShowToolBarByMouse(ByRef iToolbarByMouse, xMW, yMW, heightAboveMap, XTPDockBar, iShowDockBar, LButtonState, RButtonState) {
 			Static iShowToolByMouseBusy=0, issleep
-			; ToolTip % "iShowToolByMouseBusy = " iShowToolByMouseBusy ", iShowDockBar = " iShowDockBar ", !gisState = " !gisState ", LButtonState = " LButtonState "`nyMW = " yMW ", iToolbarByMouse = " iToolbarByMouse
 			if !fAutoShowToolBarByMouse || iShowToolByMouseBusy || iShowDockBar || !gisState || LButtonState || RButtonState
 				Return
 			iShowToolByMouseBusy:=1
@@ -1184,7 +1158,6 @@ Return
 				Sleep 100
 				CoordMode, Mouse, Screen
 				MouseGetPos,,yMW
-				; ToolTip, % yMW " " gisState " " iToolbarByMouse
 				if ((yMW<=9) && gisState && (iToolbarByMouse=0))
 				{
 					Control, Show,,, AHK_id %XTPDockBar%
@@ -1346,6 +1319,14 @@ Return
 		DetectHiddenWindows, %d%
 		Return  idxTB
 	}
+	GetCursorInfo() {
+		VarSetCapacity(CurrentCursorStruct, A_PtrSize + 16)
+		NumPut(A_PtrSize+16, CurrentCursorStruct, "uInt") ;for some reason cbSize is set to 0 after each call
+		DllCall("GetCursorInfo", "ptr", &CurrentCursorStruct)
+		hCursor := NumGet(CurrentCursorStruct, 8, "ptr")
+		Return hCursor
+	}
+
 	GuiButtonIcon(Handle, File, Index := 1, Options := "") {
 		RegExMatch(Options, "i)w\K\d+", W), (W="") ? W := 16 :
 		RegExMatch(Options, "i)h\K\d+", H), (H="") ? H := 16 :
