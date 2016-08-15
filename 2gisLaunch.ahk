@@ -164,7 +164,7 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 	SetTitleMatchMode, RegEx
 	WinWait, AHK_class %gisClass%, , 25
 	if ErrorLevel
-		_kill(grymPID)
+		_kill()
 	SetTitleMatchMode, 1
 	gisID := WinExist("")
 	ControlGet, ToolbarBanner, 	Hwnd,, Grym_ToolbarBanner1
@@ -592,7 +592,7 @@ Return
 		If (!ErrorLevel)
 			ExitApp, 2
 		Else
-			SetTimer, _close, -5000
+			_close()
 
 		}
 	inisave() {
@@ -612,16 +612,16 @@ Return
 		PostMessage, 0x112, 0xF060,,, AHK_id %gisID% ; 0x112 = WM_SYSCOMMAND, 0xF060 = SC_CLOSE
 		Sleep 500
 		If WinExist("AHK_id" gisID) {
-			WM_QUERYENDSESSION := 0x11, WM_ENDSESSION := 0x16
-			SendMessage WM_QUERYENDSESSION,, 1,, AHK_id %gisID% ; maybe children window
-			SendMessage, WM_ENDSESSION, 1,,, AHK_id %gisID%
-			WinClose AHK_id %gisID%
+			SetTimer, _kill, -5000
 		}
 		}
-	_kill(grymPID) {
+	_kill() {
+		WM_QUERYENDSESSION := 0x11, WM_ENDSESSION := 0x16
+		SendMessage WM_QUERYENDSESSION,, 1,, AHK_id %gisID% ; maybe children window
+		SendMessage, WM_ENDSESSION, 1,,, AHK_id %gisID%
+		; WinClose AHK_id %gisID%
 		Process, Close, %grymPID%
 		Process, Close, 2GISTrayNotifier.exe
-		MsgBox,,_kill,Не дождался появления главного окна 2ГИС,3
 		ExitApp
 		}
 	prefer(cls:=false) {
@@ -1391,7 +1391,7 @@ Return
 			if (mode & 8)
 				Reload
 		} else {
-			MsgBox, 36, %A_ScriptName% %currVer%, New version %lastVer% available.`n%LastVerNews%`nDownload it now? ; [Yes] [No]  [x][Don't check update]
+			MsgBox, 36, %A_ScriptName% %currVer%, Доступна новая версия %lastVer%.`n`n%LastVerNews%`n`nОбновиться? ; [Yes] [No]  [x][Don't check update]
 			IfMsgBox Yes
 			{
 				if (Err := DownloadAndReplace(FILE, backupNumber, iniFile, lastVer, currVer)) {
