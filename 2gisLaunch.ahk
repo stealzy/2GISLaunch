@@ -43,7 +43,7 @@ if %0%>0
 		MsgBox Unknown ComLine Parametr!`n:%comkey%:  :%Summ%:
 }
 { ; переменные
-	Global gisClass:="^Afx:\d{8}:\S+", heightAboveMap:=57, SideBarPlusWinBorderWidth:=338, HideLayerButton:=-18
+	Global gisClass:="^Afx:\d{8}:\S+", heightAboveMap:=57, SideBarBorderWidth:=321
 	;2gisTitle:="^[^(]+\(\S+ 201\d\) - 2(ГИС|GIS)$"
 	Global ClMapViewParent, MapViewParentID, ClText, ClTextListView, ClText3, ClText4, ClText7, ClText8
 	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar
@@ -174,8 +174,6 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 	ControlGetPos, MapViewX, MapViewY, MapViewWidth, MapViewHeight,, AHK_id %MapView%
 	WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
 	WinGetTitle, titleName, AHK_id %gisID%
-	if !alreadyexist
-		SideBarPlusWinBorderWidth := (WidthGis-MapViewWidth > 350) ? SideBarPlusWinBorderWidth : (WidthGis-MapViewWidth)
 
 	ControlGet, XTPDockBar, 	Hwnd,, XTPDockBar1
 
@@ -286,19 +284,24 @@ Return
 
 	SideBar_show() {
 		fShowSideBar:=1
-		WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
+		; WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
+		ClientGis := WinGetClientSize("AHK_id " gisID)
+		ClientWidthGis := ClientGis[3]
+		ClientHeightGis := ClientGis[4]
 		sleep 20
-		ControlMove,,,,WidthGis-SideBarPlusWinBorderWidth,HeightGis+50, AHK_id %MapView%
+		ControlMove,,,,ClientWidthGis-SideBarBorderWidth,ClientHeightGis+54, AHK_id %MapView%
 		Control, Hide,,, AHK_id %MainBanner%
 		Control, Hide,,, AHK_id %ToolbarBanner%
 		}
 	SideBar_hide() {
 		fShowSideBar:=0
-		WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
-		ControlMove,,,,WidthGis+HideLayerButton,HeightGis+50, AHK_id %MapView%
+		ClientGis := WinGetClientSize("AHK_id " gisID)
+		ClientWidthGis := ClientGis[3]
+		ClientHeightGis := ClientGis[4]
+		ControlMove,,,,ClientWidthGis,ClientHeightGis+54, AHK_id %MapView%
 		}
 	SideBar_toggle(fShowSideBar) {
-		method:= fShowSideBar ? SideBar_hide() : SideBar_show()
+		method := fShowSideBar ? SideBar_hide() : SideBar_show()
 		Sleep 100
 		}
 	ToggleDockBar(ByRef iShowDockBar, XTPDockBar) {
@@ -352,13 +355,15 @@ Return
 		RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
 		}
 	RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView) {
-		WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
+		ClientGis := WinGetClientSize("AHK_id " gisID)
+		ClientWidthGis := ClientGis[3]
+		ClientHeightGis := ClientGis[4]
 		if fShowSideBar {
-			ControlMove,,,,,HeightGis+50, AHK_id %MapView%
+			ControlMove,,,,,ClientHeightGis+54, AHK_id %MapView%
 			Control, Hide,,, AHK_id %MainBanner%
 			Control, Hide,,, AHK_id %ToolbarBanner%
 		} Else {
-			ControlMove,,,,WidthGis+HideLayerButton,HeightGis+50, AHK_id %MapView%
+			ControlMove,,,,ClientWidthGis,ClientHeightGis+54, AHK_id %MapView%
 		}
 		}
 	minimizedRibbonBar() {
@@ -1062,7 +1067,7 @@ Return
 					ClickEvent:="Map"
 
 				if (gisState=1) {					 ;если окно максим.
-					if (x>=A_ScreenWidth-25)&&(y<=25)
+					if (x>=A_ScreenWidth-30)&&(y<=25)
 						ClickEvent:="Close"
 					Else if (x>=A_ScreenWidth-120)&&(x<=A_ScreenWidth-50)&&(y<=20)
 						ClickEvent:="MinMax"
@@ -1090,8 +1095,8 @@ Return
 						}
 					} else if (ClickEvent="MinMax") {
 						; msg("Восстановить окно можно:`n• потянув вниз за полосу заголовка;`n• нажав ALT+ENTER,`n• кликнув колесом мыши.",5,,80)
-						ToolTip, Восстановить окно можно:`n• потянув вниз за полосу заголовка`;`n• нажав ALT+ENTER`,`n• кликнув колесом мыши.
-						SetTimer, RemoveToolTip, 3000
+						; ToolTip, Восстановить окно можно:`n• потянув вниз за полосу заголовка`;`n• нажав ALT+ENTER`,`n• кликнув колесом мыши.
+						; SetTimer, RemoveToolTip, 3000
 					}
 				}
 
@@ -1325,6 +1330,26 @@ Return
 		DllCall("GetCursorInfo", "ptr", &CurrentCursorStruct)
 		hCursor := NumGet(CurrentCursorStruct, 8, "ptr")
 		Return hCursor
+	}
+	WinGetClientSize(ahk_smth) {
+		if !Hwnd:=WinExist(ahk_smth)
+			Return
+		VarSetCapacity(pt, 16)
+		NumPut(x, pt, 0)
+		NumPut(y, pt, 4)
+		NumPut(w, pt, 8)
+		NumPut(h, pt, 12)
+		if (!DllCall("GetClientRect", "uint", hwnd, "uint", &pt))
+			Return
+		if (!DllCall("ClientToScreen", "uint", hwnd, "uint", &pt))
+			Return
+		x := NumGet(pt, 0, "int")
+		y := NumGet(pt, 4, "int")
+		w := NumGet(pt, 8, "int")
+		h := NumGet(pt, 12, "int")
+		Value:={}
+		Value:=[x, y, w, h]
+		Return Value
 	}
 
 	GuiButtonIcon(Handle, File, Index := 1, Options := "") {
