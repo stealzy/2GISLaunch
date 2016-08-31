@@ -9,8 +9,6 @@ FileInstall, RunAsDate.exe, RunAsDate.exe
 FileInstall, 2gisLaunch.png, 2gisLaunch.png
 if A_Is64bitOS
 	SetRegView, 32
-CoordMode, ToolTip, Client
-CoordMode, Pixel, Client
 SendMode Input
 OnExit, Exit
 menu, tray, NoStandard
@@ -59,7 +57,7 @@ if %0%>0
 		iniPath := A_ScriptDir "\2gisLaunch.ini"
 
 	{ ; Пользовательские настройки, чтение из ini.
-		IniRead, fShowSideBar, % iniPath, start_state, Show SideBar, 0
+		; IniRead, fShowSideBar, % iniPath, start_state, Show SideBar, 0
 		IniRead, iShowDockBar, % iniPath, start_state, Show DockBar, 0
 		IniRead, fAutoHideLineAndCompas, % iniPath, preference, AutoShow LineAndCompas, 0
 		IniRead, fAutoShowToolBarByMouse, % iniPath, preference, AutoShow ToolBar, 1
@@ -69,6 +67,7 @@ if %0%>0
 		IniRead, fautoCheck, % iniPath, update, Auto check, 1
 		IniRead, fautoDownload, % iniPath, update, Auto download, 1
 	}
+	fShowSideBar:=0 ; hack
 
 	FILE_URL := "https://raw.githubusercontent.com/stealzy/2GISLaunch/master/2gisLaunch.ahk"
 	mode := 2*!fautoCheck + 4*!fautoDownload
@@ -278,6 +277,17 @@ Return
 
 	#if (WinActive("ahk_exe grym.exe") || WinActive("2GISLaunch by stealzy"))
 	F1::prefer()
+	#if WinActive("Каталог ahk_class #32770 ahk_exe grym.exe")
+	~LButton Up::
+		MouseGetPos,,, winID_UnderMouse, controlClassNN_UnderMouse ;определяем контрол, на кот.нажали
+		WinGetClass, winClass_UnderMouse, AHK_id %winID_UnderMouse%
+		if ((controlClassNN_UnderMouse="HtmlWindow1") && (winClass_UnderMouse="#32770") && (GetCursorInfo() = (CURSOR_HAND := 65567))) {
+			MouseGetPos xm, ym
+			PixelSearch, ,, xm-10, ym-10, xm+10, ym+10, 0xB87118, 16, Fast ; search blue link color in area square
+			if !ErrorLevel
+				SideBar_show()
+		}
+		Return
 	#if
 }
 { ; functions
@@ -603,7 +613,7 @@ Return
 	inisave() {
 		If !FileExist(iniPath)
 			SM()
-		IniWrite, %fShowSideBar%, % iniPath, start_state, Show SideBar
+		; IniWrite, %fShowSideBar%, % iniPath, start_state, Show SideBar
 		IniWrite, %iShowDockBar%, % iniPath, start_state, Show DockBar
 		IniWrite, %fAutoHideLineAndCompas%, % iniPath, preference, AutoShow LineAndCompas
 		IniWrite, %fAutoShowToolBarByMouse%, % iniPath, preference, AutoShow ToolBar
@@ -654,9 +664,10 @@ Return
 		DetectHiddenWindows, Off
 		CoordMode, ToolTip, Screen
 		ToolTip, Чтобы начать искать`,`nпросто начните`nнабирать свой запрос`nиз любого места, 250, 14, 7
-		ToolTip, Боковую панель можно увидеть:`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• произведя поиск (второе `nнажатие Enter скроет панель)., A_ScreenWidth-200, 150, 2
-		ToolTip, Полосу заголовка можно увидеть:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана`,`n• включив опцию:`n[x] показать по подведению курсора., A_ScreenWidth/2-200, 7, 4
-		ToolTip, Клик в углу`nзакроет`nпрограмму, A_ScreenWidth-80, 7, 6
+		ToolTip, Боковую панель можно увидеть:`n• произведя поиск организаций`nили проезда`,`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• нажатие Enter по карте`nскроет панель., A_ScreenWidth-200, A_ScreenHeight/2-150, 2
+		ToolTip, Панель заголовка можно увидеть:`n• подведя курсор к верхнему краю экрана, A_ScreenWidth/2-300, 7, 4
+		ToolTip, Панель заголовка можно включить/выключить:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана., A_ScreenWidth/2+100, 7, 8
+		ToolTip, Клик в углу`nзакроет`n2ГИС, A_ScreenWidth-80, 7, 6
 
 		Gui, Preference: Add, Tab2, w430 h250 -Background, Настройки|Справка|О лаунчере
 		Gui, Preference: Tab, 3
@@ -667,7 +678,7 @@ Return
 		Gui, Preference: Add, Link,, <a href="https://github.com/stealzy/2GISLaunch">Home page</a> on GitHub
 		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>
 		Gui, Preference: Add, Link,, Use NirSoft <a href="http://www.nirsoft.net/utils/run_as_date.html">RunAsDate</a>
-		Gui, Preference: Add, Button, gcheckUpdate h21 y+15, Проверить обновления
+		Gui, Preference: Add, Button, gcheckUpdate h21 y+45, Проверить обновления
 		Gui, Preference: Tab, 2
 		Gui, Preference: Add, Text,, `tГорячие клавиши:
 		Gui, Preference: Add, Text,y+2, F1`t`t`t`t—  показать это окно`nCtrl+ -/=`; Ctrl+Pgdn/Pgup`t—  смена маштаба от положения курсора`nPgdn/Pgup `t`t`t—  смена маштаба от центра карты`nTab `t`t`t`t—  переключение между поиском и картой`nAlt+Enter; клик колесом мыши`t—  развернуть / восстановить окно`nВстроенные: `t`tF5 — радиус, F6 — длина,  F8, F9 — поиск. ;`nНеразвернутое окно можно перетаскивать правой кнопкой мыши
@@ -678,23 +689,22 @@ Return
 		Gui, Preference: Add, Link, y+0, <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">Скачать базы городов и оболочку без установочника (Linux версия)</a>.`n*.dgdat можно открывать напрямую`, установив ассоциацию с лаунчером`,
 		Gui, Preference: Add, Text, y+0 cBlue greadAndCreateLinksToCitys, либо создать ярлыки на рабочий стол.
 		Gui, Preference: Tab, 1
-		Gui, Preference: Add, Checkbox, Section vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow x+20 y+10, Отключить временные ограничения
-		Gui, Preference: Add, Checkbox, vshowTrayIcon Checked%showTrayIcon% gToggleIcon, Показывать иконку лаунчера в трее
 
-		Gui, Preference: Add, GroupBox, Section w270 h60 xs-10 y+10, Окно 2GIS. Автоматическое появление:
-		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse% xp+10 yp+18, Полосы заголовка
-		;`nпри подведении курсора к верх. краю в полноэкранном режиме.
+		Gui, Preference: Add, GroupBox, Section w270 h60 x+10 y+10, Окно 2GIS. Автоматическое появление:
+		Gui, Preference: Add, Checkbox, vfAutoShowToolBarByMouse Checked%fAutoShowToolBarByMouse% xp+10 yp+18, Панели заголовка
 		Gui, Preference: Add, Checkbox, vfAutoHideLineAndCompas Checked%fAutoHideLineAndCompas%, Маштабной линейки и Компаса
+		Gui, Preference: Add, Checkbox, vfDisableTimeRestrictions Checked%fDisableTimeRestrictions% gRestartNow xs+10, Отключить временные ограничения
 
-		Gui, Preference: Add, GroupBox, w270 h35 xs y+20, Обновления лаунчера. Автоматическая:
+		Gui, Preference: Add, GroupBox, w270 h35 xs y+10, Обновления лаунчера. Автоматическая:
 		Gui, Preference: Add, Checkbox, vfautoCheck Checked%fautoCheck% xp+10 yp+16 gUnCheckautoDownload hwndChBoxautoCheck, Проверка
 		Gui, Preference: Add, Checkbox, vfautoDownload Checked%fautoDownload% x+40, Загрузка
+		Gui, Preference: Add, Checkbox, vshowTrayIcon Checked%showTrayIcon% gToggleIcon xs+10, Показывать иконку лаунчера в трее
 		RegRead, assOpenKey, HKEY_CLASSES_ROOT, 2gisLaunch\shell\open\command
 		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""))) {
 			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h22 w270 xs, Ассоциировать с файлами городов *.dgdat
 			GuiButtonIcon(Icon, "imageres.dll", 74, "a0 l2")
 		}
-		Gui, Preference: Add, Button, greadAndCreateLinksToCitys xs h22 w270, Создать ярлыки к городам на рабочем столе
+		Gui, Preference: Add, Button, greadAndCreateLinksToCitys xs y+10 h22 w270, Создать ярлыки к городам на рабочем столе
 		Gui, Preference: Tab
 		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
 		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+110 yp+3, Показывать при следующем запуске
@@ -721,6 +731,7 @@ Return
 			ToolTip,,,,5
 			ToolTip,,,,6
 			ToolTip,,,,7
+			ToolTip,,,,8
 			Gui, darkPrefGui: Destroy
 			fiPreferShowed:=0
 			Sleep 100
