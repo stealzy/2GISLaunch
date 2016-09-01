@@ -266,7 +266,7 @@ Return
 			ChangeWindowSize()
 		sleep 200
 		return
-	~Esc Up::
+	~$Esc Up::
 		KeyWait, Esc, D T.3
 		If !ErrorLevel
 			Map_HideLogotypeAndSelection()
@@ -488,20 +488,19 @@ Return
 		Sleep 50
 		SetKeyDelay, 0
 		Send {APPSKEY}{vk45}{Esc} ; у
-		Send {APPSKEY}{vk43}{Enter} ; c
+		Send {APPSKEY}{vk43}{Enter}{Esc} ; c
 		WinWaitActive Сообщить об ошибке ahk_class #32770,, 0.1
 		If !ErrorLevel
-			PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
+			Send {Esc} ;PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
 		Else {
-			Send {APPSKEY}{vk43}{Enter}
+			Send {APPSKEY}{vk43}{Enter}{Esc}
 			WinWaitActive Сообщить об ошибке ahk_class #32770,, 0.1
 			If !ErrorLevel
-				PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
+				Send {Esc} ;PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
 		}
 		Blockinput Off
 		SetKeyDelay, 10
 		}	
-		
 	getWinStateMinMax() {
 		Static gisStateOld, WidthGisOld, HeightGisOld
 		WinGet, gisState, MinMax, AHK_id %gisID%
@@ -1095,8 +1094,6 @@ Return
 				if (gisState=1) {					 ;если окно максим.
 					if (x>=A_ScreenWidth-30)&&(y<=25)
 						ClickEvent:="Close"
-					Else if (x>=A_ScreenWidth-120)&&(x<=A_ScreenWidth-50)&&(y<=20)
-						ClickEvent:="MinMax"
 					Else if (x>(A_ScreenWidth-2))&&(y<A_ScreenHeight-50)
 						ClickEvent:="Side"
 					Else if (y<1)&&(x>50)
@@ -1119,10 +1116,6 @@ Return
 							SideBar_show()
 							Map_HideLogotype()
 						}
-					} else if (ClickEvent="MinMax") {
-						; msg("Восстановить окно можно:`n• потянув вниз за полосу заголовка;`n• нажав ALT+ENTER,`n• кликнув колесом мыши.",5,,80)
-						; ToolTip, Восстановить окно можно:`n• потянув вниз за полосу заголовка`;`n• нажав ALT+ENTER`,`n• кликнув колесом мыши.
-						; SetTimer, RemoveToolTip, 3000
 					}
 				}
 
