@@ -692,22 +692,25 @@ Return
 		Gui, Preference: Add, Tab2, w430 h250 -Background, Справка|Настройки|О лаунчере
 		Gui, Preference: Tab, 3
 		IfExist, %A_ScriptDir%\2gisLaunch.png
-			Gui, Preference: Add, Picture, y+8 w260 h190, %A_ScriptDir%\2gisLaunch.png
+			Gui, Preference: Add, Picture, x+8 y+8 w260 h190, %A_ScriptDir%\2gisLaunch.png
 		vers := GetCurrentVer(GetNameNoExt(A_ScriptName) . ".ini") ? GetCurrentVer(GetNameNoExt(A_ScriptName) . ".ini") : GetCurrentVerFromScript("Oi)(?:^|\R);\s*ver\w*\s*=?\s*(\d+(?:\.\d+)?)(?:$|\R)")
-		Gui, Preference: Add, Text, cGreen x+15 ym+25 h12 , `nRelease %vers% ;x+270 y+20
+		Gui, Preference: Add, Text, cGreen x+12 ym+25 h12 , `nRelease %vers% ;x+270 y+20
 		Gui, Preference: Add, Link,, <a href="https://github.com/stealzy/2GISLaunch">Home page</a> on GitHub
 		Gui, Preference: Add, Link,, Written in <a href="http://autohotkey.com">AutoHotkey</a>
 		Gui, Preference: Add, Link,, Use NirSoft <a href="http://www.nirsoft.net/utils/run_as_date.html">RunAsDate</a>
 		Gui, Preference: Add, Button, gcheckUpdate h21 y+45, Проверить обновления
 		Gui, Preference: Tab, 1
-		Gui, Preference: Add, Text,, `tГорячие клавиши:
-		Gui, Preference: Add, Text,y+2, F1`t`t`t`t—  показать это окно`nEsc-Esc`t`t`t—  очистить карту`nCtrl+ -/=`; Ctrl+Pgdn/Pgup`t—  смена маштаба от положения курсора`nPgdn/Pgup `t`t`t—  смена маштаба от центра карты`nTab `t`t`t`t—  переключение между поиском и картой`nAlt+Enter; клик колесом мыши`t—  развернуть / восстановить окно`nF7`t`t`t`t—  показать Маштабную линейку и компас`nВстроенные: `t`tF5 — радиус, F6 — длина,  F8, F9 — поиск. ;`nНеразвернутое окно можно перетаскивать правой кнопкой мыши
-		; Gui, Preference: Add, Text,y+4,  F5 — радиус,`tF6 — длина,`t`tF8, F9`t— поиск
-		Gui, Preference: Add, Text,, `tВыбор города из нескольких:
-		Gui, Preference: Add, Text,y+2, Города записаны в файлах Data_*.dgdat, по-умолчанию находятся в:
-		Gui, Preference: Add, Text, y+0 cBlue gOpenPFdir, `%Program Files`%\2gis\3.0
-		Gui, Preference: Add, Link, y+0, <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">Скачать базы городов и оболочку без установочника (Linux версия)</a>.`n*.dgdat можно открывать напрямую`, установив ассоциацию с лаунчером`,
-		Gui, Preference: Add, Text, y+0 cBlue greadAndCreateLinksToCitys, либо создать ярлыки на рабочий стол.
+		Gui, Preference: Add, Text, Section, `tГорячие клавиши:
+		Gui, Preference: Add, Text,y+2, F1`t`t`t`t—  показать это окно`nEsc-Esc `t`t`t—  очистить карту`nCtrl+ -/=`; Ctrl+Pgdn/Pgup`t—  смена маштаба от положения курсора`nPgdn/Pgup `t`t`t—  смена маштаба от центра карты`nAlt+Enter; клик колесом мыши`t—  развернуть / восстановить окно`nF5 — радиус, F6 — длина, F7 — маштабная линейка и компас, F8, F9 — поиск. ;`nНеразвернутое окно можно перетаскивать правой кнопкой мыши
+		Gui, Preference: Add, Text, y+10, `tДелаем Portable:
+		Gui, Preference: Add, Text, y+2, Достаем файлы Data_*.dgdat и grym.exe из установленной 2ГИС в папке
+		Gui, Preference: Add, Link, y+0 cBlue gOpenPFdir, <a href="">Program Files\2gis\3.0</a>
+		Gui, Preference: Add, Link, yp+0 x+5, либо качаем свежие без установочника <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">на 2gis.ru</a>`,
+		Gui, Preference: Add, Text, xs y+0, и закидываем их в папку лаунчера. Готово! Запуск через лаунчер.
+		Gui, Preference: Add, Text, y+10, `tВыбор города из нескольких:
+		Gui, Preference: Add, Text, y+2, Вместо ярлыков можно открывать напрямую файлы городов (*.dgdat)`.
+		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1""")))
+			Gui, Preference: Add, Text, y+0, если нажать кнопку "Ассоциировать" в настройках.
 		Gui, Preference: Tab, 2
 
 		Gui, Preference: Add, GroupBox, Section w270 h60 x+10 y+10, Окно 2GIS. Автоматическое появление:
@@ -719,12 +722,12 @@ Return
 		Gui, Preference: Add, GroupBox, w270 h35 xs y+10, Обновления лаунчера. Автоматическая:
 		Gui, Preference: Add, Checkbox, vfautoCheck Checked%fautoCheck% xp+10 yp+16 gUnCheckautoDownload hwndChBoxautoCheck, Проверка
 		Gui, Preference: Add, Checkbox, vfautoDownload Checked%fautoDownload% x+40, Загрузка
+		Gui, Preference: Add, Button, greadAndCreateLinksToCitys xs h22 w270, Создать ярлыки к городам на рабочем столе
 		RegRead, assOpenKey, HKEY_CLASSES_ROOT, 2gisLaunch\shell\open\command
 		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""))) {
 			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h22 w270 xs, Ассоциировать с файлами городов *.dgdat
 			GuiButtonIcon(Icon, "imageres.dll", 74, "a0 l2")
 		}
-		Gui, Preference: Add, Button, greadAndCreateLinksToCitys xs y+10 h22 w270, Создать ярлыки к городам на рабочем столе
 		Gui, Preference: Tab
 		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
 		Gui, Preference: Add, Checkbox, vShowF1tip Checked%ShowF1tip% x+110 yp+3, Показывать при следующем запуске
@@ -1452,7 +1455,7 @@ Return
 					if (mode & 8)
 						Reload
 					else if ((mode & 16) || (mode & 1)) {
-						MsgBox, 36, %A_ScriptName%, Script updated.`nRestart it now?
+						MsgBox, 36, %A_ScriptName%, Обновление загружено.`nПерезапустить лаунчер?
 						IfMsgBox Yes
 						{
 							Reload ; no CL parameters!
