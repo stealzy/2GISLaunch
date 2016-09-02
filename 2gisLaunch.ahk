@@ -270,8 +270,11 @@ Return
 		return
 	~$Esc Up::
 		KeyWait, Esc, D T.3
-		If !ErrorLevel
+		If !ErrorLevel {
 			Map_HideLogotype("AndSelection")
+			If fhideSideBarOnStart
+				SideBar_hide()
+		}
 		Return
 	~$^vk56::
 		ControlGetFocus, varfocus, ahk_id %gisID%
