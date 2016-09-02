@@ -43,7 +43,7 @@ if %0%>0
 	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar
 	Global iniPath, grymDir, PreferenceGuiHwnd, fRestart, fRestartAdmin, hHookKeybd, fNotTypeHookKeydb, hHookMouse, titleName, ExitCode:=0
 	Global fShowSideBar, iShowDockBar, fAutoHideLineAndCompas, fAutoShowToolBarByMouse, fDisableTimeRestrictions, fFirstRun, ShowF1tip, fhideSideBarOnStart
-	Global gisState, iGisActiv=0, iShowLineKompas, iShowInstruments, fSideBarRight, iToolbarByMouse=0
+	Global gisState, iGisActiv=0, iShowLineKompas, iShowInstruments, iDirectoryLeft, iToolbarByMouse=0
 	Global LButtonState:=0, RButtonState:=0
 	Global fautoCheck, fautoDownload, FILE_URL, CHANGELOG_URL, VERSION_REGEX, WhatNew_REGEX
 
@@ -114,7 +114,8 @@ if %0%>0
 				ExitApp
 		}
 
-		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
+		If !FileExist(iniPath)
+			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "ShowRubricatorOnStartup", 0) ; не показывать рубрикатор на старте
 		RegReadWrite("REG_SZ", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "UILanguage", "ru") ; русский язык для скрытия сплеш-окон по заголовку
@@ -145,6 +146,7 @@ if %0%>0
 
 	RegRead, iShowInstruments, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common, ShowTools
 	RegRead, iShowLineKompas, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common, ShowScale
+	RegRead, iDirectoryLeft, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common, DirectoryLeft
 	iShowLineKompas:=!iShowLineKompas
 	iShowInstruments:=!iShowInstruments
 }
@@ -225,7 +227,7 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 			}
 			ControlFocus,, AHK_id %MapView%
 		}
-		RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
+		RemoveBannerAndSideBar(fShowSideBar)
 	}
 }
 SetTimer getWinStateMinMax, 200
@@ -312,24 +314,36 @@ Return
 	SideBar_show() {
 		fShowSideBar:=1
 		; WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
-		ClientGis := WinGetClientSize("AHK_id " gisID)
-		ClientWidthGis := ClientGis[3]
-		ClientHeightGis := ClientGis[4]
-		sleep 20
-		ControlMove,,,,ClientWidthGis-SideBarBorderWidth,ClientHeightGis+54, AHK_id %MapView%
+		if iDirectoryLeft
+		{
+
+		} else {
+			ClientGis := WinGetClientSize("AHK_id " gisID)
+			ClientWidthGis := ClientGis[3]
+			ClientHeightGis := ClientGis[4]
+			sleep 20
+			ControlMove,,,,ClientWidthGis-SideBarBorderWidth,ClientHeightGis+54, AHK_id %MapView%
+		}
 		Control, Hide,,, AHK_id %MainBanner%
 		Control, Hide,,, AHK_id %ToolbarBanner%
 		}
 	SideBar_hide() {
 		fShowSideBar:=0
-		ClientGis := WinGetClientSize("AHK_id " gisID)
-		ClientWidthGis := ClientGis[3]
-		ClientHeightGis := ClientGis[4]
-		ControlMove,,,,ClientWidthGis,ClientHeightGis+54, AHK_id %MapView%
+		if iDirectoryLeft
+		{
+
+		} else {
+			ClientGis := WinGetClientSize("AHK_id " gisID)
+			ClientWidthGis := ClientGis[3]
+			ClientHeightGis := ClientGis[4]
+			ControlMove,,,,ClientWidthGis,ClientHeightGis+54, AHK_id %MapView%
+		}
 		}
 	SideBar_toggle(fShowSideBar) {
 		method := fShowSideBar ? SideBar_hide() : SideBar_show()
-		Sleep 100
+		}
+	RemoveBannerAndSideBar(fShowSideBar) {
+		method := fShowSideBar ? SideBar_show() : SideBar_hide()
 		}
 	ToggleDockBar(ByRef iShowDockBar, XTPDockBar) {
 		if !iToolbarByMouse ; дополнительная проверка соответствия iShowDockBar
@@ -358,7 +372,7 @@ Return
 		} else if (gisState=0) { ;NoMax
 			WinMaximize,AHK_id %gisID%
 		}
-		RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
+		RemoveBannerAndSideBar(fShowSideBar)
 		}
 	WindRedraw() {
 		WinGet, gisState, MinMax, AHK_id %gisID%
@@ -379,19 +393,7 @@ Return
 			WinMove, AHK_id %gisID%,,,, WidthGis+1, HeightGis+1
 			SetWinDelay, 10
 		}
-		RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
-		}
-	RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView) {
-		ClientGis := WinGetClientSize("AHK_id " gisID)
-		ClientWidthGis := ClientGis[3]
-		ClientHeightGis := ClientGis[4]
-		if fShowSideBar {
-			ControlMove,,,,,ClientHeightGis+54, AHK_id %MapView%
-			Control, Hide,,, AHK_id %MainBanner%
-			Control, Hide,,, AHK_id %ToolbarBanner%
-		} Else {
-			ControlMove,,,,ClientWidthGis,ClientHeightGis+54, AHK_id %MapView%
-		}
+		RemoveBannerAndSideBar(fShowSideBar)
 		}
 	minimizedRibbonBar() {
 		ControlGetPos, , yXTP, wXTP, hXTP, XTPToolBar1, AHK_id %gisID% ; HKEY_CURRENT_USER\Software\DoubleGIS\Grym\Common\ribbon_bar DWORD Minimized 1
@@ -520,11 +522,11 @@ Return
 
 		if ((gisState=1) && (gisStateOld=0)) { ; After Win Maximize
 			Sleep 100
-			RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
+			RemoveBannerAndSideBar(fShowSideBar)
 		} else if ((gisState=0) && (gisStateOld=1)) { ; After Win restore
 			if GetKeyState("LButton")
 				KeyWait LButton
-			RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
+			RemoveBannerAndSideBar(fShowSideBar)
 			If !iShowDockBar {
 				Control, Hide,,, AHK_id %XTPDockBar%
 				WindRedraw()
@@ -532,7 +534,7 @@ Return
 		} else {
 				WinGetPos,,, WidthGis, HeightGis, AHK_id %gisID%
 				if ((WidthGis!=WidthGisOld) || (HeightGis!=HeightGisOld))
-					RemoveBannerAndSideBar(MainBanner, ToolbarBanner, fShowSideBar, MapView)
+					RemoveBannerAndSideBar(fShowSideBar)
 		}
 		gisStateOld:=gisState
 		}
@@ -1027,60 +1029,44 @@ Return
 			x:=xMW-Xw-xCW ;xMC
 			y:=yMW-Yw-yCW ;yMC
 
-			calc:
-				if (!iShowLineKompas && (x!=""))
-				{ ;область, в которой появляется линейка появляется меньше, чем...
-					if ((x>9)&&(x<90)&&(y>(15+55*iShowInstruments))&&(y<(300+55*iShowInstruments)))
-						S:=1
-					else
-						S:=0
+			if (!iShowLineKompas && (x!=""))
+			{ ;область, в которой появляется линейка появляется меньше, чем...
+				if ((x>9)&&(x<90)&&(y>(15+55*iShowInstruments))&&(y<(300+55*iShowInstruments)))
+					S:=1
+				else
+					S:=0
+			}
+			else if (iShowLineKompas && (x!=""))
+			{ ;область, за которой линейка исчезает
+				if ((x>0) and (x<130) and (y>55*iShowInstruments) and (y<(330+55*iShowInstruments))) { ; 
+					S:=0
+				} else {
+					S:=1
 				}
-				else if (iShowLineKompas && (x!=""))
-				{ ;область, за которой линейка исчезает
-					if ((x>0) and (x<130) and (y>55*iShowInstruments) and (y<(330+55*iShowInstruments))) { ; 
-						S:=0
-					} else {
-						S:=1
-					}
-				}
+			}
 
-				If S
-				{
-					iShowLineKompas:=!iShowLineKompas
-					ToggleLineKompas()
-				}
+			If S
+			{
+				iShowLineKompas:=!iShowLineKompas
+				ToggleLineKompas()
+			}
 			
 			iAutoHideBusy:=0
 			Return
 		}
 		ToggleLineKompas(check=0) {
-			Static alreadyuse:=False
 			Critical
-			CoordMode, Mouse, Screen
-			if Not alreadyuse
-				MouseGetPos, x1, y1
 			PostMessage, 0x111, 32808, 0,, ahk_id %gisID%
-			if (Not alreadyuse) {
-				WinWaitActive, AHK_class #32770
-				WinSet Transparent, 0 ;, AHK_class #32770
-				Sleep 500
-				alreadyuse:=1
-				MouseMove, x1, y1, 0
-			}
-			
-			if (check=0) {
-				Send {Tab 6}{Space}{Enter}
-				WinWaitClose, AHK_class #32770,, 2
-				Sleep 200
-			}
-			else {
-				WinWaitActive, AHK_class #32770 ; долгий "true" вариант
-				Sleep 20
-				Control,%check%,,Button12,AHK_class #32770
-				Sleep 50
-				;ControlClick,Button14,AHK_class #32770
-				Send {Enter}
-			}
+			Send {Tab 6}{Space}{Enter}
+			WinWaitClose, AHK_class #32770,, 2
+			Sleep 200
+			Critical, Off
+		}
+		ToggleSideBarSide() {
+			Critical
+			PostMessage, 0x111, 32808, 0,, ahk_id %gisID%
+			Send {Tab 2}{Up}{Enter}
+			WinWaitClose, AHK_class #32770,, 2
 			Sleep 100
 			Critical, Off
 		}
