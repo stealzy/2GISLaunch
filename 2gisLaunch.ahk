@@ -682,10 +682,10 @@ Return
 		WinShow AHK_id %darkPrefGuiHwnd%
 		DetectHiddenWindows, Off
 		CoordMode, ToolTip, Screen
-		ToolTip, Чтобы начать искать`,`nпросто начните`nнабирать свой запрос`nиз любого места, 250, 14, 7
-		ToolTip, Боковую панель можно увидеть:`n• произведя поиск организаций`nили проезда`,`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• нажатие Enter по карте`nскроет панель., A_ScreenWidth-200, A_ScreenHeight/2-150, 2
+		ToolTip, Чтобы начать искать`,`nпросто начните`nнабирать свой запрос`nиз любого места, 120, 7, 7
+		ToolTip, Боковую панель можно`n увидеть:`n• произведя поиск`nорганизаций / проезда`,`n• нажав [ F3 ]`,`n• кликнув по правому краю`nразвернутого окна 2ГИС`,`n• нажатие Enter по карте`nскроет панель., A_ScreenWidth-80, A_ScreenHeight/2-150, 2
 		ToolTip, Панель заголовка можно увидеть:`n• подведя курсор к верхнему краю экрана, A_ScreenWidth/2-300, 7, 4
-		ToolTip, Панель заголовка можно включить/выключить:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана., A_ScreenWidth/2+100, 7, 8
+		ToolTip, Панель заголовка можно показать/скрыть:`n• нажав [ F2 ]`,  • кликнув по верхнему краю экрана., A_ScreenWidth/2+100, 7, 8
 		ToolTip, Клик в углу`nзакроет`n2ГИС, A_ScreenWidth-80, 7, 6
 
 		Gui, Preference: Add, Tab2, w430 h250 -Background, Справка|Настройки|О лаунчере
@@ -792,6 +792,11 @@ Return
 				GuiControl, Enable, fautoDownload
 			Return
 		}
+	lPrefer:
+		PostMessage, 0x112, 0xF060,,, Общие настройки ahk_class #32770
+		Gui, PrefButton: Cancel
+		prefer()
+		Return
 	Exit:
 		Send {Alt Up}{RAlt Up}
 		if iGisActiv
@@ -812,11 +817,6 @@ Return
 				Run, "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
 			}
 		ExitApp % ExitCode
-	lPrefer:
-		PostMessage, 0x112, 0xF060,,, Общие настройки ahk_class #32770
-		Gui, PrefButton: Cancel
-		prefer()
-		Return
 	CheckPreferenceWinExist:
 		; General settings
 		If WinExist("PrefButtonTitle") {
@@ -875,7 +875,7 @@ Return
 			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\shell\open\command", , """" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1""")
 			RegReadWrite("REG_SZ", "HKEY_CLASSES_ROOT", "2gisLaunch\DefaultIcon", , """" . A_ScriptDir . "\2gisLaunch.ico""")
 		}
-	}
+		}
 
 	SetHookShellProc() {
 		DllCall("RegisterShellHookWindow", "UInt", A_ScriptHwnd) ; должен быть установлен до активации окна, если 2гис уже запущен
@@ -901,16 +901,12 @@ Return
 		iGisActiv:=0
 		}
 
-
 	ShellProc(nCode)  {
 		Critical
 			if ((nCode = 1) || (nCode = 2)) {
 				cls(nCode)
 			} else if ((nCode = 4) || (nCode = 32772))
 				checkActiveWin()
-
-			; if ((nCode = 6) || (nCode = 2))
-			; 	checkPreferenceWin(nCode)
 		}
 
 		cls(nCode) {
@@ -945,7 +941,6 @@ Return
 				if grymPID {
 					Process, Exist, %grymPID%
 					If (ErrorLevel=0) {
-						; MsgBox CheckProcesExist: %grymPID%
 						ExitCode:=1
 						ExitApp, 1
 					}
