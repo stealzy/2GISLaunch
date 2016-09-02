@@ -41,7 +41,7 @@ if %0%>0
 	;2gisTitle:="^[^(]+\(\S+ 201\d\) - 2(ГИС|GIS)$"
 	Global ClMapViewParent, MapViewParentID, ClText, ClTextListView, ClText3, ClText4, ClText7, ClText8
 	Global gisID, grymPID, TextCtrl3, TextCtrl4, Text4, MapView, MainBanner, ToolbarBanner, XTPDockBar
-	Global iniPath, grymDir, PreferenceGuiHwnd, fRestart, fRestartAdmin, hHookKeybd, hHookMouse, titleName, ExitCode:=0
+	Global iniPath, grymDir, PreferenceGuiHwnd, fRestart, fRestartAdmin, hHookKeybd, fNotTypeHookKeydb, hHookMouse, titleName, ExitCode:=0
 	Global fShowSideBar, iShowDockBar, fAutoHideLineAndCompas, fAutoShowToolBarByMouse, fDisableTimeRestrictions, fFirstRun, ShowF1tip, fhideSideBarOnStart
 	Global gisState, iGisActiv=0, iShowLineKompas, iShowInstruments, fSideBarRight, iToolbarByMouse=0
 	Global LButtonState:=0, RButtonState:=0
@@ -269,7 +269,15 @@ Return
 	~$Esc Up::
 		KeyWait, Esc, D T.3
 		If !ErrorLevel
-			Map_HideLogotypeAndSelection()
+			Map_HideLogotype("AndSelection")
+		Return
+	~$^vk56::
+		ControlGetFocus, varfocus, ahk_id %gisID%
+		if (varfocus="Grym_MapView1") {
+			Send {F8}
+			Sleep 30
+			Send ^{vk56}
+		}
 		Return
 	#If
 
@@ -287,6 +295,14 @@ Return
 			notPixGreen := ErrorLevel
 			if (!notPixBlue || !notPixGreen)
 				SideBar_show()
+			if !notPixGreen
+			{
+				Sleep 100
+				fNotTypeHookKeydb := true
+				Send {APPSKEY}{vk45}{Enter} ; у
+				Sleep 100
+				fNotTypeHookKeydb := false
+			}
 		}
 		Return
 	#if
@@ -473,34 +489,31 @@ Return
 		} else if ((varfocus="Grym_MapView1") && fhideSideBarOnStart)
 			SideBar_hide()
 		}
-	Map_HideLogotype() {
+	Map_HideLogotype(AndSelection := false) {
 		Blockinput On
-		ControlFocus, , AHK_id %MapView%
+		ControlFocus,, AHK_id %MapView%
 		Sleep 50
 		SetKeyDelay, 0
+		fNotTypeHookKeydb := true
 		Send {APPSKEY}{vk45}{Esc} ; у
-		Blockinput Off
-		SetKeyDelay, 10
-		}
-	Map_HideLogotypeAndSelection() {
-		Blockinput On
-		ControlFocus, , AHK_id %MapView%
-		Sleep 50
-		SetKeyDelay, 0
-		Send {APPSKEY}{vk45}{Esc} ; у
-		Send {APPSKEY}{vk43}{Enter}{Esc} ; c
-		WinWaitActive Сообщить об ошибке ahk_class #32770,, 0.1
-		If !ErrorLevel
-			Send {Esc} ;PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
-		Else {
-			Send {APPSKEY}{vk43}{Enter}{Esc}
+		if AndSelection
+		{
+			Send {APPSKEY}{vk43}{Enter}{Esc} ; c
 			WinWaitActive Сообщить об ошибке ahk_class #32770,, 0.1
 			If !ErrorLevel
 				Send {Esc} ;PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
+			Else {
+				Send {APPSKEY}{vk43}{Enter}{Esc}
+				WinWaitActive Сообщить об ошибке ahk_class #32770,, 0.1
+				If !ErrorLevel
+					Send {Esc} ;PostMessage, 0x112, 0xF060,,, Сообщить об ошибке ahk_class #32770
+			}
 		}
+		Sleep 100
+		fNotTypeHookKeydb := false
 		Blockinput Off
 		SetKeyDelay, 10
-		}	
+		}
 	getWinStateMinMax() {
 		Static gisStateOld, WidthGisOld, HeightGisOld
 		WinGet, gisState, MinMax, AHK_id %gisID%
@@ -1122,6 +1135,14 @@ Return
 					notPixGreen := ErrorLevel
 					if (!notPixBlue || !notPixGreen)
 						SideBar_show()
+					if !notPixGreen
+					{
+						Sleep 100
+						fNotTypeHookKeydb := true
+						Send {APPSKEY}{vk45}{Enter} ; у
+						Sleep 100
+						fNotTypeHookKeydb := false
+					}
 				}
 				
 				ClickEvent:=0
@@ -1208,8 +1229,7 @@ Return
 	; Get keyboard \w input to var: Char
 	; Call f: typeInControl
 	LowLevelKeyboardProc(nCode, wParam, lParam) {
-		global
-		Static busyShowChar, ABCD := "ЁЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮQWERTYUIOPASDFGHJKLZXCVBNMёйцукенгшщзхъфывапролджэячсмитьбюqwertyuiopasdfghjklzxcvbnm1234567890+-" ;,.;:?!/|\@#$%^*&№~<>(){}[]``""'
+		Static busyShowChar, ABCD := "ЁЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮQWERTYUIOPASDFGHJKLZXCVBNMёйцукенгшщзхъфывапролджэячсмитьбюqwertyuiopasdfghjklzxcvbnm1234567890+" ;,.;:?!/|\@#$%^*&№~<>(){}[]``""'
 		if (wParam = 0x100)   ; WM_KEYDOWN = 0x100
 		{
 			 vk := NumGet(lParam+0, "UInt")
@@ -1253,7 +1273,7 @@ Return
 			}
 		typeInControl(Char) {
 			Static itypeInControlBusy
-			if itypeInControlBusy
+			if (busyShowChar || fNotTypeHookKeydb)
 				Return
 			itypeInControlBusy:=1
 			ControlGetFocus, varfocus, ahk_id %gisID%
