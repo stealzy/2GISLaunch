@@ -114,7 +114,8 @@ if %0%>0
 				ExitApp
 		}
 
-		If !FileExist(iniPath)
+		RegRead iDirectoryLeft, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common, DirectoryLeft
+		If ((iDirectoryLeft="") || !FileExist(iniPath))
 			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "ShowRubricatorOnStartup", 0) ; не показывать рубрикатор на старте
@@ -284,8 +285,6 @@ Return
 			Send ^{vk56}
 		}
 		Return
-	#If
-
 	#if (WinActive("ahk_exe grym.exe") || WinActive("2GISLaunch by stealzy"))
 	F1::prefer()
 	#if WinActive("Каталог ahk_class #32770 ahk_exe grym.exe")
@@ -840,10 +839,20 @@ Return
 		If WinExist("PrefButtonTitle") {
 			If (!WinExist("Общие настройки ahk_class #32770") || ( !WinActive("AHK_pid" grymPID) && !WinActive("PrefButtonTitle") )) {
 				Gui, PrefButton: Cancel
+				ToolTip
+			} else {
+				MouseGetPos,,, winID_UnderMouse, controlClassNN_UnderMouse
+				if ((controlClassNN_UnderMouse="Button5") && !ToolTipWarningOn) {
+					ToolTip Справочник не выйдет скрывать`,`nесли он находится слева.
+					ToolTipWarningOn := true
+				} else if ((controlClassNN_UnderMouse != "Button5") && ToolTipWarningOn) {
+					ToolTip
+					ToolTipWarningOn := false
+				}
 			}
 		} Else {
 			If (PrefID:=WinActive("Общие настройки ahk_class #32770")) {
-				Gui, PrefButton: +Owner -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border -ToolWindow AlwaysOnTop
+				Gui, PrefButton: +Owner -Resize -SysMenu -MinimizeBox -MaximizeBox -Disabled -SysMenu -Caption -Border ToolWindow AlwaysOnTop
 				Gui, PrefButton: Add, Button, glPrefer +Default x-1 y-1 w152 h32 , Настройки 2GISLaunch
 				Gui, PrefButton: +HwndPrefButtonHwnd
 				WinGetPos, XPref, YPref, WidthPref, HeightPref, Общие настройки ahk_class #32770
