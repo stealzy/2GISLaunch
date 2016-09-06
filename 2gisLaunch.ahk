@@ -13,8 +13,7 @@ SendMode Input
 OnExit, Exit
 Menu, Tray, NoIcon
 
-if %0%>0
-{ ; command line extraction
+if (%0% != 0) { ; command line extraction
 	Loop, %0%
 	{
 		param := %A_Index%
@@ -105,7 +104,7 @@ if %0%>0
 		Else If FileExist(PF "\grym.exe")
 			grymDir:=PF
 		Else {
-			Gui, PrefButton: Add, Link,, Либо установите 2GIS, либо поместите в папку с лаунчером файлы 2GIS: grym.exe `nи *.dgdat - их можно достать из папки установленной программы `n(C:\Program Files (x86)\2gis\3.0) или скачать на сайте 2гис <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">версию для Linux</a>.
+			Gui, PrefButton: Add, Link,, Либо установите 2GIS, либо поместите в папку с лаунчером файлы 2GIS:`ngrym.exe и *.dgdat - их можно достать из папки установленной программы `n(C:\Program Files (x86)\2gis\3.0) или скачать на сайте 2гис <a href="http://info.2gis.ru/moscow/products/download#skachat-kartu-na-komputer&linux">версию для Linux</a>.
 			Gui, PrefButton: Show, w400 h50
 			Return
 
@@ -184,7 +183,7 @@ GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запу
 			ClTextListView:="ATL:01" Ctrls[A_Index, 3]
 		}
 	}
-	
+
 	StringTrimRight, ClMapViewParent, ClNNMapViewParent, 1
 	ControlGet, MapViewParentID, Hwnd,, %ClNNMapViewParent%, AHK_id %gisID%
 	ClText3 := ClText . "3"
@@ -367,7 +366,7 @@ Return
 		Critical
 		if (gisState=1) { ;Max
 			WinRestore,AHK_id %gisID%
-			
+
 			sleep 200
 			WinGetPos, x, y, w, h
 			ShowTipMove(x,y,w,h)
@@ -544,7 +543,7 @@ Return
 		Static sec:=0
 		if sec++>10
 			SetTimer timeRestriction, Off
-		if (WinActive("Информация справочника устарела" ahk_class #32770)) { ; (nCode = 6) && 
+		if (WinActive("Информация справочника устарела" ahk_class #32770)) { ; (nCode = 6) &&
 			ToolTip, Вы можете отключить временные ограничения в настройках [F1].
 			SetTimer RemoveToolTip, 3000
 		}
@@ -571,7 +570,7 @@ Return
 		WinSet,Transparent, 160
 		SetTimer, TipsDestroy, 2000
 		return
-		
+
 		TipsDestroy:
 		Gui,msg1Gui: Destroy
 		return
@@ -741,8 +740,8 @@ Return
 		Gui, Preference: Add, Button, greadAndCreateLinksToCitys xs h22 w270, Создать ярлыки к городам на рабочем столе
 		RegRead, assOpenKey, HKEY_CLASSES_ROOT, 2gisLaunch\shell\open\command
 		If (!A_IsAdmin && (assOpenKey != ("""" . A_AhkPath . """ """ . A_ScriptFullPath . """ ""%1"""))) {
-			Gui, Preference: Add, Button, gCreateAssociation hwndIcon h22 w270 xs, Ассоциировать с файлами городов *.dgdat
-			GuiButtonIcon(Icon, "imageres.dll", 74, "a0 l2")
+			Gui, Preference: Add, Button, gCreateAssociation hwndidCreateAssButt h22 w270 xs, Ассоциировать с файлами городов *.dgdat
+			GuiButtonIcon(idCreateAssButt, "imageres.dll", 74, "a0 l2")
 		}
 		Gui, Preference: Tab
 		Gui, Preference: Add, Button, gЗакрыть +Default x10 w70 h20 , Закрыть
@@ -823,15 +822,15 @@ Return
 
 		if fRestart {
 			if A_IsCompiled
-				Run, "%A_ScriptFullPath%" "%City%" ;last parameter need for del origin f
+				Run, "%A_ScriptFullPath%"
 			Else
-				Run, "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
+				Run, "%A_AhkPath%" "%A_ScriptFullPath%"
 		}
 		if fRestartAdmin
 			try {
-				Run *RunAs "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
+				Run *RunAs "%A_AhkPath%" "%A_ScriptFullPath%"
 			} catch {
-				Run, "%A_AhkPath%" "%A_ScriptFullPath%" "%City%"
+				Run, "%A_AhkPath%" "%A_ScriptFullPath%"
 			}
 		ExitApp % ExitCode
 	CheckPreferenceWinExist:
@@ -1050,7 +1049,7 @@ Return
 			}
 			else if (iShowLineKompas && (x!=""))
 			{ ;область, за которой линейка исчезает
-				if ((x>0) and (x<130) and (y>55*iShowInstruments) and (y<(330+55*iShowInstruments))) { ; 
+				if ((x>0) and (x<130) and (y>55*iShowInstruments) and (y<(330+55*iShowInstruments))) { ;
 					S:=0
 				} else {
 					S:=1
@@ -1062,7 +1061,7 @@ Return
 				iShowLineKompas:=!iShowLineKompas
 				ToggleLineKompas()
 			}
-			
+
 			iAutoHideBusy:=0
 			Return
 		}
@@ -1142,7 +1141,7 @@ Return
 						fNotTypeHookKeydb := false
 					}
 				}
-				
+
 				ClickEvent:=0
 			}
 			LButtonStateOld:=LButtonState
@@ -1186,7 +1185,7 @@ Return
 			yOld:=y
 			iRKMbusy:=0
 		}
-		
+
 		ShowToolBarByMouse(ByRef iToolbarByMouse, xMW, yMW, heightAboveMap, XTPDockBar, iShowDockBar, LButtonState, RButtonState) {
 			Static iShowToolByMouseBusy=0, issleep
 			if !fAutoShowToolBarByMouse || iShowToolByMouseBusy || iShowDockBar || !gisState || LButtonState || RButtonState
@@ -1287,7 +1286,7 @@ Return
 
 	TrayIcon_GetInfo(sExeName:="") { ; by Sean (http://goo.gl/dh0xIX) & Cyruz (http://ciroprincipe.info)
 		d := A_DetectHiddenWindows
-		DetectHiddenWindows, On   
+		DetectHiddenWindows, On
 
 		oTrayInfo := Object()
 		For key, sTrayP in ["Shell_TrayWnd", "NotifyIconOverflowWindow"]
@@ -1402,7 +1401,7 @@ Return
 		NumPut( L, button_il, 0 + Psz, DW )		; Left Margin
 		NumPut( T, button_il, 4 + Psz, DW )		; Top Margin
 		NumPut( R, button_il, 8 + Psz, DW )		; Right Margin
-		NumPut( B, button_il, 12 + Psz, DW )	; Bottom Margin	
+		NumPut( B, button_il, 12 + Psz, DW )	; Bottom Margin
 		NumPut( A, button_il, 16 + Psz, DW )	; Alignment
 		SendMessage, BCM_SETIMAGELIST := 5634, 0, &button_il,, AHK_ID %Handle%
 		return IL_Add( normal_il, File, Index )
@@ -1431,7 +1430,7 @@ Return
 					}
 				}
 			}
-			
+
 			Update(FILE, mode, backupNumber, iniFile, currVer, lastVer, LastVerNews)
 		}
 	}
@@ -1550,7 +1549,7 @@ Return
 		} else
 			lastVer := changelogContent
 
-		OutputDebug, GetLastVer() = %lastVer%`, Regex = %Regex% 
+		OutputDebug, GetLastVer() = %lastVer%`, Regex = %Regex%
 		Return lastVer
 	}
 	GetLastVerNews(CHANGELOG, changelogContent) {
