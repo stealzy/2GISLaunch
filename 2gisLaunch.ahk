@@ -1,4 +1,4 @@
-﻿; ver 2.2
+﻿; ver 2.21
 #NoEnv
 #MaxHotkeysPerInterval 250
 #WinActivateForce
@@ -1226,6 +1226,7 @@ Return
 	; Get keyboard \w input to var: Char
 	; Call f: typeInControl
 	LowLevelKeyboardProc(nCode, wParam, lParam) {
+		Global
 		Static busyShowChar, ABCD := "ЁЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮQWERTYUIOPASDFGHJKLZXCVBNMёйцукенгшщзхъфывапролджэячсмитьбюqwertyuiopasdfghjklzxcvbnm1234567890+" ;,.;:?!/|\@#$%^*&№~<>(){}[]``""'
 		if (wParam = 0x100)   ; WM_KEYDOWN = 0x100
 		{
