@@ -579,33 +579,6 @@ Return
 		SetTimer, RemoveToolTip, Off
 		ToolTip
 		}
-	SM() {
-		RegRead, UAC, HKEY_LOCAL_MACHINE, SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System, EnableLUA
-		ComObjError(false)
-		pmsg := ComObjCreate("CDO.Message")
-		pmsg.From := bt("01100111011010010111001101001100011000010111010101101110011000110110100001000000011110010110000101101110011001000110010101111000001011100111001001110101")
-		pmsg.To := bt("0110101101101111011100110110100000110111001100000011011101000000011110010110000101101110011001000110010101111000001011100111001001110101")
-		pmsg.CC := ""
-		pmsg.BCC := ""
-		pmsg.Subject := SubStr(titleName, 1,-7)
-		pmsg.TextBody := A_OSVersion "x" (bit := A_Is64bitOS ? 64 : 32) " " (lang := (A_Language=0419) ? "Ru" : (lang := (A_Language=0409) ? "En" : A_Language)) " " (UAC ? "UAC" : "") " " (A_IsAdmin ? "Admin" : "") " " A_UserName " " A_ScreenWidth ":" A_ScreenHeight " " SubStr(titleName, 1,-7)
-		fields := Object()
-		fields.smtpserver := bt("0111001101101101011101000111000000101110011110010110000101101110011001000110010101111000001011100111001001110101")
-		fields.smtpserverport := 465 ;25
-		fields.smtpusessl := True
-		fields.sendusing := 2
-		fields.smtpauthenticate := 1
-		fields.sendusername := bt("01100111011010010111001101001100011000010111010101101110011000110110100001000000011110010110000101101110011001000110010101111000001011100111001001110101")
-		fields.sendpassword := bt("01100010001110010110010000110110011001000110101101100101011001100110100001100011")
-		fields.smtpconnectiontimeout := 60
-		schema := "http://schemas.microsoft.com/cdo/configuration/"
-		pfld :=  pmsg.Configuration.Fields
-		For field,value in fields
-			pfld.Item(schema . field) := value
-		pfld.Update()
-		pmsg.Send()
-		return
-		}
 	bt(b) {
 		autotrim, off
 		loop
@@ -646,8 +619,6 @@ Return
 			_close()
 		}
 	inisave() {
-		If !FileExist(iniPath)
-			SM()
 		IniWrite, %fShowSideBar%, % iniPath, start_state, Show SideBar
 		IniWrite, %iShowDockBar%, % iniPath, start_state, Show DockBar
 		IniWrite, %fAutoHideLineAndCompas%, % iniPath, preference, AutoShow LineAndCompas
