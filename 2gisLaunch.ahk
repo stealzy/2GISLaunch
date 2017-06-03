@@ -1,4 +1,4 @@
-﻿; ver 2.21
+﻿; ver 2.22
 #NoEnv
 #MaxHotkeysPerInterval 250
 #WinActivateForce
@@ -80,7 +80,7 @@ if (%0% != 0) { ; command line extraction
 		SetTitleMatchMode, RegEx
 		IfWinNotExist, AHK_class %gisClass%
 		{
-			Process, Close, %grymPID%
+			Process, Close, grym.exe
 			Process, Close, 2GISTrayNotifier.exe
 			grymPID:=0
 			alreadyexist:=false
@@ -115,8 +115,9 @@ if (%0% != 0) { ; command line extraction
 
 		RegRead iDirectoryLeft, HKEY_CURRENT_USER, Software\DoubleGIS\Grym\Common, DirectoryLeft
 		If ((iDirectoryLeft="") || !FileExist(iniPath))
-			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо
-		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска
+			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "DirectoryLeft", 0) ; перекидываем справочник направо при первом запуске
+		If (fAutoShowToolBarByMouse && !iShowDockBar)
+			RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common\ribbon_bar", "Minimized", 1) ; сворачиваем ленту поиска перед запуском, чтобы работало автоматическое скрытие панели заголовка
 		RegReadWrite("REG_DWORD", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "ShowRubricatorOnStartup", 0) ; не показывать рубрикатор на старте
 		RegReadWrite("REG_SZ", "HKEY_CURRENT_USER", "Software\DoubleGIS\Grym\Common", "UILanguage", "ru") ; русский язык для скрытия сплеш-окон по заголовку
 		If fDisableTimeRestrictions {
@@ -129,16 +130,16 @@ if (%0% != 0) { ; command line extraction
 
 		FullPathAndParam:="""" . grymDir . "\grym.exe"" """ . City . """"
 		If (fDisableTimeRestrictions && FileExist(A_ScriptDir "\RunAsDate.exe"))
-			Run, RunAsDate.exe 0%A_WDay%\08\2010 %A_Hour%:%A_Min%:00 %FullPathAndParam%, %grymDir%
+			Run RunAsDate.exe 0%A_WDay%\08\2010 %A_Hour%:%A_Min%:00 %FullPathAndParam%, %grymDir%
 		Else
-			Run, % FullPathAndParam
+			Run % FullPathAndParam
 
 		If !FileExist(iniPath)
 			readAndCreateLinksToCitys()
 	}
 
-	Process, wait, grym.exe, 5 ; 5sec
-	grymPID = %ErrorLevel%
+	Process Wait, grym.exe, 5
+	grymPID := ErrorLevel
 	if (grymPID=0) {
 		MsgBox No grym.exe process
 		ExitApp
@@ -151,7 +152,7 @@ if (%0% != 0) { ; command line extraction
 	iShowInstruments:=!iShowInstruments
 }
 
-GroupAdd, splashWindows, 2ГИС ahk_class #32770 AHK_pid %grymPID%,,,, Запуск программы невозможен. ;2GIS
+GroupAdd, splashWindows, 2ГИС ahk_class #32770 ahk_exe grym.exe,,,, Запуск программы невозможен. ;2GIS
 
 { ; находим главное окно и его контролы, прячем рекламу, восст. состояние при предыдущем запуске
 	{ ; находим главное окно и его контролы
@@ -240,7 +241,7 @@ If ShowF1tip
 Return
 
 { ; hotkeys
-	#If WinActive("AHK_pid " . grymPID)
+	#If WinActive("ahk_exe grym.exe")
 	~Pgdn::Zoom("WheelUp", MapView, 1)
 	~Pgup::Zoom("WheelDown", MapView, 1)
 	^Pgdn::Zoom("WheelUp", MapView, 0)
@@ -602,6 +603,7 @@ Return
 		return a
 		}
 	checkProcessExist() {
+		; если нет вид. окна и иконки в трее ([ ] показывать в панели задач), то (закрываем процесс, если есть) выходим
 		SetTitleMatchMode RegEx
 		If WinExist("ahk_class" gisClass)
 			Return
@@ -641,7 +643,7 @@ Return
 		SendMessage WM_QUERYENDSESSION,, 1,, AHK_id %gisID% ; maybe children window
 		SendMessage, WM_ENDSESSION, 1,,, AHK_id %gisID%
 		; WinClose AHK_id %gisID%
-		Process, Close, %grymPID%
+		Process, Close, grym.exe
 		Process, Close, 2GISTrayNotifier.exe
 		ExitApp
 		}
@@ -781,7 +783,7 @@ Return
 		}
 	lPrefer:
 		PostMessage, 0x112, 0xF060,,, Общие настройки ahk_class #32770
-		Gui, PrefButton: Cancel
+		; Gui, PrefButton: Cancel
 		prefer()
 		Return
 	Exit:
@@ -807,7 +809,7 @@ Return
 	CheckPreferenceWinExist:
 		; General settings
 		If WinExist("PrefButtonTitle") {
-			If (!WinExist("Общие настройки ahk_class #32770") || ( !WinActive("AHK_pid" grymPID) && !WinActive("PrefButtonTitle") )) {
+			If (!WinExist("Общие настройки ahk_class #32770") || ( !WinActive("ahk_exe grym.exe") && !WinActive("PrefButtonTitle") )) {
 				Gui, PrefButton: Cancel
 				ToolTip
 			} else {
@@ -925,7 +927,6 @@ Return
 					Else
 						Break
 				}
-				SetTimer, CheckProcesExist, -30
 				IfWinNotExist, ahk_group splashWindows
 					Break
 			}
@@ -933,16 +934,6 @@ Return
 			SetWinDelay, 10
 			DetectHiddenWindows, off
 			Return
-
-			CheckProcesExist:
-				if grymPID {
-					Process, Exist, %grymPID%
-					If (ErrorLevel=0) {
-						ExitCode:=1
-						ExitApp, 1
-					}
-				}
-				Return
 		}
 		checkActiveWin() {
 			if iGisActiv {
